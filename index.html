@@ -17,8 +17,8 @@ input,select,textarea{width:100%;padding:13px;border:1px solid #dce4dd;border-ra
 button{border:0;border-radius:12px;background:var(--green);color:white;padding:13px 16px;font-size:15px;font-weight:700;cursor:pointer}
 button.secondary{background:#e8eee9;color:var(--green)}button:disabled{opacity:.5}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{margin:0;padding:14px}.stat small{color:var(--muted)}.stat strong{display:block;font-size:24px;margin-top:8px}
-nav{position:fixed;bottom:0;left:0;right:0;background:white;display:flex;justify-content:space-around;padding:10px 4px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px #0000000d}
-nav button{background:transparent;color:var(--green);padding:9px 10px;font-size:12px}
+nav{position:fixed;bottom:0;left:0;right:0;background:white;display:flex;justify-content:space-around;padding:10px 4px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px #0000000d;overflow-x:auto}
+nav button{background:transparent;color:var(--green);padding:9px 8px;font-size:12px;white-space:nowrap}
 .hidden{display:none}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.muted{color:var(--muted);font-size:13px}.danger{color:#a33}
 </style>
 </head>
@@ -58,10 +58,20 @@ nav button{background:transparent;color:var(--green);padding:9px 10px;font-size:
 <label>Срок оплаты (если долг)</label><input id="dueDate" type="date">
 <label>Причина / примечание</label><textarea id="financeNote" rows="2"></textarea>
 <button id="saveFinance">Сохранить операцию</button><div id="financeMsg" class="muted"></div></div></div>
+<div id="employees" class="hidden"><h2>Сотрудники</h2>
+<div class="panel"><h3>Добавить сотрудника</h3>
+<label>ФИО</label><input id="employeeFullName" placeholder="Имя и фамилия">
+<label>Логин</label><input id="employeeUsername" placeholder="Например, agent01">
+<label>Email для входа</label><input id="employeeEmail" type="email" placeholder="Рабочий email">
+<label>Временный пароль</label><input id="employeePassword" type="password" autocomplete="new-password" placeholder="Минимум 6 символов">
+<label>Должность</label><select id="employeeRole"><option value="sales">Торговый представитель</option><option value="delivery">Доставщик</option></select>
+<button id="createEmployee">Создать сотрудника</button><div id="employeeMsg" class="muted"></div></div>
+<p class="muted">Новый сотрудник сможет войти по указанным email и паролю. Передайте ему эти данные безопасным способом.</p>
+</div>
 <div id="reports" class="hidden"><h2>Отчёты</h2><div id="reportText" class="panel muted">Данные загружаются…</div></div>
 </section>
 </main>
-<nav id="nav" class="hidden"><button data-page="dashboard">Главная</button><button data-page="shops">Магазины</button><button data-page="finance">Финансы</button><button data-page="reports">Отчёты</button></nav>
+<nav id="nav" class="hidden"><button data-page="dashboard">Главная</button><button data-page="shops">Магазины</button><button data-page="finance">Финансы</button><button id="employeesNav" data-page="employees" class="hidden">Сотрудники</button><button data-page="reports">Отчёты</button></nav>
 <script>
 const SUPABASE_URL='https://btxmlgdmdvmtijmgfhhg.supabase.co';
 const SUPABASE_KEY='sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm';
@@ -76,6 +86,7 @@ async function load(){
  if(error||!p||!p.active){await db.auth.signOut();showLogin();msg('loginMsg','Профиль сотрудника не найден или неактивен.');return}
  profile=p; $('login').classList.add('hidden');$('app').classList.remove('hidden');$('nav').classList.remove('hidden');
  $('staffName').textContent=p.full_name||p.username;$('staffRole').textContent=({admin:'Администратор',sales:'Торговый представитель',delivery:'Доставщик'})[p.role]||p.role;
+ $('employeesNav').classList.toggle('hidden',p.role!=='admin');
  await refresh();
 }
 function showLogin(){$('login').classList.remove('hidden');$('app').classList.add('hidden');$('nav').classList.add('hidden')}
@@ -97,7 +108,10 @@ async function refresh(){
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 $('loginBtn').onclick=async()=>{msg('loginMsg','Входим…');const {error}=await db.auth.signInWithPassword({email:$('email').value,password:$('password').value});if(error)msg('loginMsg',error.message);else await load()};
 $('logoutBtn').onclick=async()=>{await db.auth.signOut();showLogin()};
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{['dashboard','shops','finance','reports'].forEach(p=>$(p).classList.toggle('hidden',p!==b.dataset.page))});
+document.querySelectorAll('nav button[data-page]').forEach(b=>b.onclick=()=>{
+ if(b.dataset.page==='employees'&&profile?.role!=='admin')return;
+ ['dashboard','shops','finance','reports','employees'].forEach(p=>$(p).classList.toggle('hidden',p!==b.dataset.page));
+});
 $('saveShop').onclick=async()=>{
  msg('shopMsg','Сохраняем…');const row={name:$('shopName').value.trim(),phone:$('shopPhone').value.trim()||null,address:$('shopAddress').value.trim()||null,notes:$('shopNotes').value.trim()||null};
  if(!row.name){msg('shopMsg','Введите название магазина');return}
@@ -110,10 +124,30 @@ $('saveFinance').onclick=async()=>{
  if(!shop_id||!(amount>0)){msg('financeMsg','Выберите магазин и введите сумму');return}
  if(type!=='sale'&&!['admin','delivery'].includes(profile.role)){msg('financeMsg','У вас нет прав для этой операции');return}
  if(type==='adjustment'&&!['admin','delivery'].includes(profile.role)){msg('financeMsg','Нет прав на корректировку');return}
- let direction=type==='sale'?'debit':type==='payment'?'credit':type==='return'?'credit': 'debit';
+ let direction=type==='sale'?'debit':type==='payment'?'credit':type==='return'?'credit':'debit';
  const row={shop_id,operation_type:type,amount,direction,due_date:$('dueDate').value||null,note:$('financeNote').value.trim()||null,created_by:profile.user_id};
  const {error}=await db.from('vita_shop_finances').insert(row);
  msg('financeMsg',error?error.message:'Операция сохранена');if(!error){$('amount').value='';$('financeNote').value='';await refresh()}
+};
+$('createEmployee').onclick=async()=>{
+ msg('employeeMsg','Создаём сотрудника…');
+ if(profile?.role!=='admin'){msg('employeeMsg','Только администратор может создавать сотрудников.');return}
+ const full_name=$('employeeFullName').value.trim();
+ const username=$('employeeUsername').value.trim();
+ const email=$('employeeEmail').value.trim();
+ const password=$('employeePassword').value;
+ const role=$('employeeRole').value;
+ if(!full_name||!username||!email||!password){msg('employeeMsg','Заполните все поля.');return}
+ if(password.length<6){msg('employeeMsg','Пароль должен содержать минимум 6 символов.');return}
+ $('createEmployee').disabled=true;
+ try{
+  const {data,error}=await db.functions.invoke('create-vita-user',{body:{full_name,username,email,password,role}});
+  if(error)throw error;
+  if(data?.error)throw new Error(data.error);
+  msg('employeeMsg','Сотрудник успешно создан.');
+  ['employeeFullName','employeeUsername','employeeEmail','employeePassword'].forEach(id=>$(id).value='');
+ }catch(e){msg('employeeMsg','Ошибка: '+(e.message||String(e)));}
+ finally{$('createEmployee').disabled=false}
 };
 load();
 </script>
