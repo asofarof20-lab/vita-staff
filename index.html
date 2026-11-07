@@ -148,7 +148,10 @@ $('createEmployee').onclick=async()=>{
 
     const {data,error}=await db.functions.invoke('create-vita-user',{
       body:{full_name,username,email,password,role},
-      headers:{Authorization:'Bearer '+accessToken}
+      headers:{
+        Authorization:'Bearer '+accessToken,
+        apikey:SUPABASE_KEY
+      }
     });
 
     if(error){
