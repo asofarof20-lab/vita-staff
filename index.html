@@ -157,7 +157,7 @@ $('createEmployee').onclick=async()=>{
         const response=error.context;
         if(response&&typeof response.json==='function'){
           const body=await response.json();
-          detail=body.error||body.message||JSON.stringify(body);
+          detail=(body.error||body.message||'Ошибка')+(body.details?' — '+body.details:'');
         }
       }catch(_){}
       throw new Error(detail);
