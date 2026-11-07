@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VITA Staff</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--green:#24563e;--bg:#f5f6f2;--ink:#20382c;--muted:#718078}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px Arial,sans-serif}
+header{background:var(--green);color:white;padding:20px 18px;border-radius:0 0 22px 22px}
+header h1{margin:0;font-size:23px}header p{margin:6px 0 0;opacity:.85;font-size:13px}
+main{max-width:720px;margin:auto;padding:16px 14px 90px}
+.panel,.stat,.item{background:white;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 3px 14px #193b2910}
+label{display:block;font-size:13px;color:var(--muted);margin:12px 0 5px}
+input,select,textarea{width:100%;padding:13px;border:1px solid #dce4dd;border-radius:10px;font-size:16px;background:#fff}
+button{border:0;border-radius:12px;background:var(--green);color:white;padding:13px 16px;font-size:15px;font-weight:700;cursor:pointer}
+button.secondary{background:#e8eee9;color:var(--green)}button:disabled{opacity:.5}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{margin:0;padding:14px}.stat small{color:var(--muted)}.stat strong{display:block;font-size:24px;margin-top:8px}
+nav{position:fixed;bottom:0;left:0;right:0;background:white;display:flex;justify-content:space-around;padding:10px 4px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px #0000000d}
+nav button{background:transparent;color:var(--green);padding:9px 10px;font-size:12px}
+.hidden{display:none}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.muted{color:var(--muted);font-size:13px}.danger{color:#a33}
+</style>
+</head>
+<body>
+<header><h1>VITA Staff</h1><p>Система управления сотрудниками и магазинами</p></header>
+<main>
+<section id="login" class="panel">
+<h2>Вход сотрудника</h2>
+<label>Email</label><input id="email" type="email" autocomplete="username" placeholder="Введите email">
+<label>Пароль</label><input id="password" type="password" autocomplete="current-password" placeholder="Введите пароль">
+<p><button id="loginBtn">Войти</button></p><div id="loginMsg" class="muted"></div>
+</section>
+<section id="app" class="hidden">
+<div class="row"><div><b id="staffName">Сотрудник</b><div id="staffRole" class="muted"></div></div><button class="secondary" id="logoutBtn">Выйти</button></div>
+<div id="dashboard">
+<h2>Главная</h2>
+<div class="grid">
+<div class="stat"><small>Магазины</small><strong id="shopCount">—</strong></div>
+<div class="stat"><small>Продажи</small><strong id="salesTotal">—</strong></div>
+<div class="stat"><small>Получено</small><strong id="paidTotal">—</strong></div>
+<div class="stat"><small>Долги</small><strong id="debtTotal">—</strong></div>
+</div>
+<div class="panel"><b>VITA Staff</b><p class="muted">Здесь учитываются магазины, суммы продаж, оплаты, долги и возвраты. Заказы и товары вводятся в основном каталоге, не здесь.</p></div>
+</div>
+<div id="shops" class="hidden"><h2>Магазины</h2><div id="shopList"></div>
+<div class="panel"><h3>Добавить магазин</h3>
+<label>Название магазина</label><input id="shopName" placeholder="Название">
+<label>Контакт / владелец</label><input id="shopContact" placeholder="Имя контактного лица">
+<label>Телефон</label><input id="shopPhone" placeholder="Телефон">
+<label>Адрес</label><input id="shopAddress" placeholder="Адрес">
+<label>Примечание</label><textarea id="shopNotes" rows="2"></textarea>
+<button id="saveShop">Сохранить магазин</button><div id="shopMsg" class="muted"></div></div></div>
+<div id="finance" class="hidden"><h2>Финансы</h2><div class="panel"><p class="muted">Добавление новой продажи доступно торговому представителю. Оплаты, возвраты и корректировки — администратору или доставщику.</p>
+<label>Магазин</label><select id="financeShop"></select>
+<label>Операция</label><select id="operation"><option value="sale">Новая продажа</option><option value="payment">Оплата</option><option value="return">Возврат</option><option value="adjustment">Корректировка</option></select>
+<label>Сумма (с.)</label><input id="amount" type="number" min="0.01" step="0.01">
+<label>Срок оплаты (если долг)</label><input id="dueDate" type="date">
+<label>Причина / примечание</label><textarea id="financeNote" rows="2"></textarea>
+<button id="saveFinance">Сохранить операцию</button><div id="financeMsg" class="muted"></div></div></div>
+<div id="reports" class="hidden"><h2>Отчёты</h2><div id="reportText" class="panel muted">Данные загружаются…</div></div>
+</section>
+</main>
+<nav id="nav" class="hidden"><button data-page="dashboard">Главная</button><button data-page="shops">Магазины</button><button data-page="finance">Финансы</button><button data-page="reports">Отчёты</button></nav>
+<script>
+const SUPABASE_URL='https://btxmlgdmdvmtijmgfhhg.supabase.co';
+const SUPABASE_KEY='sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm';
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let profile=null, shops=[], finances=[];
+const $=id=>document.getElementById(id);
+const money=n=>(Number(n||0)).toLocaleString('ru-RU',{maximumFractionDigits:2})+' с.';
+function msg(id,t){$(id).textContent=t}
+async function load(){
+ const {data:u}=await db.auth.getUser(); if(!u.user)return showLogin();
+ const {data:p,error}=await db.from('vita_staff').select('*').eq('user_id',u.user.id).maybeSingle();
+ if(error||!p||!p.active){await db.auth.signOut();showLogin();msg('loginMsg','Профиль сотрудника не найден или неактивен.');return}
+ profile=p; $('login').classList.add('hidden');$('app').classList.remove('hidden');$('nav').classList.remove('hidden');
+ $('staffName').textContent=p.full_name||p.username;$('staffRole').textContent=({admin:'Администратор',sales:'Торговый представитель',delivery:'Доставщик'})[p.role]||p.role;
+ await refresh();
+}
+function showLogin(){$('login').classList.remove('hidden');$('app').classList.add('hidden');$('nav').classList.add('hidden')}
+async function refresh(){
+ const [s,f]=await Promise.all([
+ db.from('vita_shops').select('*').order('created_at',{ascending:false}),
+ db.from('vita_shop_finances').select('*').order('created_at',{ascending:false})
+ ]);
+ shops=s.data||[];finances=f.data||[];
+ $('shopCount').textContent=shops.length;
+ const sales=finances.filter(x=>x.operation_type==='sale').reduce((a,x)=>a+Number(x.amount||0),0);
+ const paid=finances.filter(x=>x.operation_type==='payment').reduce((a,x)=>a+Number(x.amount||0),0);
+ const balance=finances.reduce((a,x)=>a+(x.direction==='debit'?1:-1)*Number(x.amount||0),0);
+ $('salesTotal').textContent=money(sales);$('paidTotal').textContent=money(paid);$('debtTotal').textContent=money(balance);
+ $('shopList').innerHTML=shops.map(x=>`<div class="item"><b>${esc(x.name)}</b><div class="muted">${esc(x.phone||'')}${x.address?' · '+esc(x.address):''}</div></div>`).join('')||'<p class="muted">Магазинов пока нет</p>';
+ $('financeShop').innerHTML=shops.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
+ $('reportText').textContent=`Магазинов: ${shops.length}. Продажи: ${money(sales)}. Получено оплат: ${money(paid)}. Баланс дебета/кредита: ${money(balance)}.`;
+}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('loginBtn').onclick=async()=>{msg('loginMsg','Входим…');const {error}=await db.auth.signInWithPassword({email:$('email').value,password:$('password').value});if(error)msg('loginMsg',error.message);else await load()};
+$('logoutBtn').onclick=async()=>{await db.auth.signOut();showLogin()};
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{['dashboard','shops','finance','reports'].forEach(p=>$(p).classList.toggle('hidden',p!==b.dataset.page))});
+$('saveShop').onclick=async()=>{
+ msg('shopMsg','Сохраняем…');const row={name:$('shopName').value.trim(),phone:$('shopPhone').value.trim()||null,address:$('shopAddress').value.trim()||null,notes:$('shopNotes').value.trim()||null};
+ if(!row.name){msg('shopMsg','Введите название магазина');return}
+ if(profile.role==='sales')row.sales_rep_id=profile.user_id;
+ const {error}=await db.from('vita_shops').insert(row);
+ msg('shopMsg',error?error.message:'Магазин добавлен');if(!error){['shopName','shopPhone','shopAddress','shopNotes','shopContact'].forEach(i=>$(i).value='');await refresh()}
+};
+$('saveFinance').onclick=async()=>{
+ const type=$('operation').value, amount=Number($('amount').value), shop_id=$('financeShop').value;
+ if(!shop_id||!(amount>0)){msg('financeMsg','Выберите магазин и введите сумму');return}
+ if(type!=='sale'&&!['admin','delivery'].includes(profile.role)){msg('financeMsg','У вас нет прав для этой операции');return}
+ if(type==='adjustment'&&!['admin','delivery'].includes(profile.role)){msg('financeMsg','Нет прав на корректировку');return}
+ let direction=type==='sale'?'debit':type==='payment'?'credit':type==='return'?'credit': 'debit';
+ const row={shop_id,operation_type:type,amount,direction,due_date:$('dueDate').value||null,note:$('financeNote').value.trim()||null,created_by:profile.user_id};
+ const {error}=await db.from('vita_shop_finances').insert(row);
+ msg('financeMsg',error?error.message:'Операция сохранена');if(!error){$('amount').value='';$('financeNote').value='';await refresh()}
+};
+load();
+</script>
+</body></html>
