@@ -2,28 +2,33 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>VITA Staff</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root{--green:#24563e;--bg:#f5f6f2;--ink:#20382c;--muted:#718078}
+:root{--green:#24563e;--green2:#347653;--bg:#f3f6f2;--ink:#20382c;--muted:#718078;--line:#e3eae4;--red:#a33;--gold:#9a6b16}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px Arial,sans-serif}
-header{background:var(--green);color:white;padding:20px 18px;border-radius:0 0 22px 22px}
-header h1{margin:0;font-size:23px}header p{margin:6px 0 0;opacity:.85;font-size:13px}
-main{max-width:720px;margin:auto;padding:16px 14px 90px}
-.panel,.stat,.item{background:white;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 3px 14px #193b2910}
+header{background:linear-gradient(135deg,#1e4934,#347653);color:#fff;padding:22px 18px 24px;border-radius:0 0 25px 25px}
+header h1{margin:0;font-size:24px}header p{margin:7px 0 0;opacity:.85;font-size:13px}
+main{max-width:760px;margin:auto;padding:15px 14px 100px}
+.panel,.stat,.item{background:#fff;border:1px solid #edf1ed;border-radius:17px;padding:16px;margin:12px 0;box-shadow:0 4px 16px #193b2909}
+h2{font-size:21px;margin:17px 2px 12px}h3{font-size:17px;margin:0 0 10px}
 label{display:block;font-size:13px;color:var(--muted);margin:12px 0 5px}
-input,select,textarea{width:100%;padding:13px;border:1px solid #dce4dd;border-radius:10px;font-size:16px;background:#fff}
-button{border:0;border-radius:12px;background:var(--green);color:white;padding:13px 16px;font-size:15px;font-weight:700;cursor:pointer}
-button.secondary{background:#e8eee9;color:var(--green)}button:disabled{opacity:.5}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{margin:0;padding:14px}.stat small{color:var(--muted)}.stat strong{display:block;font-size:24px;margin-top:8px}
-nav{position:fixed;bottom:0;left:0;right:0;background:white;display:flex;justify-content:space-around;padding:10px 4px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px #0000000d;overflow-x:auto}
-nav button{background:transparent;color:var(--green);padding:9px 8px;font-size:12px;white-space:nowrap}
-.hidden{display:none}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.muted{color:var(--muted);font-size:13px}.danger{color:#a33}
+input,select,textarea{width:100%;padding:13px;border:1px solid #dce4dd;border-radius:11px;font-size:16px;background:#fff;color:var(--ink);min-height:46px}
+button{border:0;border-radius:12px;background:var(--green);color:#fff;padding:13px 16px;font-size:15px;font-weight:700;cursor:pointer;min-height:44px}
+button.secondary{background:#e8eee9;color:var(--green)}button.light{background:#f0f5f1;color:var(--green)}button:disabled{opacity:.5}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{margin:0;padding:14px}.stat small{color:var(--muted)}.stat strong{display:block;font-size:23px;margin-top:8px;overflow-wrap:anywhere}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;display:flex;justify-content:flex-start;gap:4px;padding:8px 4px calc(8px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px #0000000d;overflow-x:auto;z-index:5}
+nav button{background:transparent;color:var(--green);padding:9px 10px;font-size:12px;white-space:nowrap;min-height:40px}
+.hidden{display:none!important}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.muted{color:var(--muted);font-size:13px;line-height:1.45}.danger{color:var(--red)}.success{color:var(--green2)}
+.item{margin:9px 0;padding:14px}.item b{display:block;margin-bottom:5px}.tag{display:inline-block;background:#edf4ef;color:var(--green);border-radius:20px;padding:5px 9px;font-size:12px;margin:4px 4px 0 0}
+.stack{display:grid;gap:9px}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.actionline{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.actionline button{flex:1}
+hr{border:0;border-top:1px solid var(--line);margin:15px 0}
+@media(max-width:420px){.two{grid-template-columns:1fr}.grid{gap:8px}.stat strong{font-size:20px}}
 </style>
 </head>
 <body>
-<header><h1>VITA Staff</h1><p>Система управления сотрудниками и магазинами</p></header>
+<header><h1>VITA Staff</h1><p>Управление сотрудниками, магазинами и продажами</p></header>
 <main>
 <section id="login" class="panel">
 <h2>Вход сотрудника</h2>
@@ -33,6 +38,7 @@ nav button{background:transparent;color:var(--green);padding:9px 8px;font-size:1
 </section>
 <section id="app" class="hidden">
 <div class="row"><div><b id="staffName">Сотрудник</b><div id="staffRole" class="muted"></div></div><button class="secondary" id="logoutBtn">Выйти</button></div>
+
 <div id="dashboard">
 <h2>Главная</h2>
 <div class="grid">
@@ -41,8 +47,9 @@ nav button{background:transparent;color:var(--green);padding:9px 8px;font-size:1
 <div class="stat"><small>Получено</small><strong id="paidTotal">—</strong></div>
 <div class="stat"><small>Долги</small><strong id="debtTotal">—</strong></div>
 </div>
-<div class="panel"><b>VITA Staff</b><p class="muted">Здесь учитываются магазины, суммы продаж, оплаты, долги и возвраты. Заказы и товары вводятся в основном каталоге, не здесь.</p></div>
+<div class="panel"><b>VITA Staff</b><p class="muted">Товары и состав заказа вводятся в основном каталоге. Здесь ведётся учёт сотрудников, магазинов, продаж, оплат, долгов и возвратов.</p></div>
 </div>
+
 <div id="shops" class="hidden"><h2>Магазины</h2><div id="shopList"></div>
 <div class="panel"><h3>Добавить магазин</h3>
 <label>Название магазина</label><input id="shopName" placeholder="Название">
@@ -51,14 +58,16 @@ nav button{background:transparent;color:var(--green);padding:9px 8px;font-size:1
 <label>Адрес</label><input id="shopAddress" placeholder="Адрес">
 <label>Примечание</label><textarea id="shopNotes" rows="2"></textarea>
 <button id="saveShop">Сохранить магазин</button><div id="shopMsg" class="muted"></div></div></div>
-<div id="finance" class="hidden"><h2>Финансы</h2><div class="panel"><p class="muted">Добавление новой продажи доступно торговому представителю. Оплаты, возвраты и корректировки — администратору или доставщику.</p>
+
+<div id="finance" class="hidden"><h2>Финансы</h2><div class="panel"><p class="muted">Новая продажа доступна торговому представителю. Оплаты, возвраты и корректировки — администратору или доставщику.</p>
 <label>Магазин</label><select id="financeShop"></select>
 <label>Операция</label><select id="operation"><option value="sale">Новая продажа</option><option value="payment">Оплата</option><option value="return">Возврат</option><option value="adjustment">Корректировка</option></select>
 <label>Сумма (с.)</label><input id="amount" type="number" min="0.01" step="0.01">
-<label>Срок оплаты (если долг)</label><input id="dueDate" type="date">
+<label>Срок оплаты</label><input id="dueDate" type="date">
 <label>Причина / примечание</label><textarea id="financeNote" rows="2"></textarea>
 <button id="saveFinance">Сохранить операцию</button><div id="financeMsg" class="muted"></div></div></div>
-<div id="employees" class="hidden"><h2>Сотрудники</h2>
+
+<div id="employees" class="hidden"><h2>Сотрудники</h2><div id="employeeList"></div>
 <div class="panel"><h3>Добавить сотрудника</h3>
 <label>ФИО</label><input id="employeeFullName" placeholder="Имя и фамилия">
 <label>Логин</label><input id="employeeUsername" placeholder="Например, agent01">
@@ -66,27 +75,56 @@ nav button{background:transparent;color:var(--green);padding:9px 8px;font-size:1
 <label>Временный пароль</label><input id="employeePassword" type="password" autocomplete="new-password" placeholder="Минимум 6 символов">
 <label>Должность</label><select id="employeeRole"><option value="sales">Торговый представитель</option><option value="delivery">Доставщик</option></select>
 <button id="createEmployee">Создать сотрудника</button><div id="employeeMsg" class="muted"></div></div>
-<p class="muted">Новый сотрудник сможет войти по указанным email и паролю. Передайте ему эти данные безопасным способом.</p>
+<p class="muted">Новый сотрудник сможет войти по указанным email и паролю. Передайте ему данные безопасным способом.</p>
 </div>
+
+<div id="management" class="hidden"><h2>Управление</h2>
+<div class="panel"><h3>Назначить торгового представителя</h3>
+<label>Магазин</label><select id="salesShop"></select>
+<label>Торговый представитель</label><select id="salesStaff"></select>
+<button id="assignSales">Назначить представителя</button><div id="salesAssignMsg" class="muted"></div>
+</div>
+<div class="panel"><h3>Назначить доставщика</h3>
+<label>Магазин</label><select id="deliveryShop"></select>
+<label>Доставщик</label><select id="deliveryStaff"></select>
+<button id="assignDelivery">Назначить доставщика</button><div id="deliveryAssignMsg" class="muted"></div>
+</div>
+<div class="panel"><h3>План продаж сотрудника</h3>
+<label>Торговый представитель</label><select id="planStaff"></select>
+<div class="two"><div><label>Начало периода</label><input id="planStart" type="date"></div><div><label>Конец периода</label><input id="planEnd" type="date"></div></div>
+<label>План продаж (с.)</label><input id="planAmount" type="number" min="0" step="0.01" placeholder="Например, 50000">
+<button id="savePlan">Сохранить план</button><div id="planMsg" class="muted"></div>
+</div>
+<div class="panel"><h3>Текущие назначения магазинов</h3><div id="assignmentList" class="muted">Загрузка…</div></div>
+<div class="panel"><h3>Планы сотрудников</h3><div id="planList" class="muted">Загрузка…</div></div>
+</div>
+
 <div id="reports" class="hidden"><h2>Отчёты</h2><div id="reportText" class="panel muted">Данные загружаются…</div></div>
 </section>
 </main>
-<nav id="nav" class="hidden"><button data-page="dashboard">Главная</button><button data-page="shops">Магазины</button><button data-page="finance">Финансы</button><button id="employeesNav" data-page="employees" class="hidden">Сотрудники</button><button data-page="reports">Отчёты</button></nav>
+<nav id="nav" class="hidden">
+<button data-page="dashboard">Главная</button><button data-page="shops">Магазины</button><button data-page="finance">Финансы</button>
+<button id="employeesNav" data-page="employees" class="hidden">Сотрудники</button>
+<button id="managementNav" data-page="management" class="hidden">Управление</button><button data-page="reports">Отчёты</button>
+</nav>
 <script>
 const SUPABASE_URL='https://btxmlgdmdvmtijmgfhhg.supabase.co';
 const SUPABASE_KEY='sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm';
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-let profile=null, shops=[], finances=[];
+let profile=null,shops=[],finances=[],staff=[];
 const $=id=>document.getElementById(id);
 const money=n=>(Number(n||0)).toLocaleString('ru-RU',{maximumFractionDigits:2})+' с.';
-function msg(id,t){$(id).textContent=t}
+function msg(id,t,ok=false){$(id).textContent=t;$(id).className=ok?'muted success':'muted'}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function roleName(r){return ({admin:'Администратор',sales:'Торговый представитель',delivery:'Доставщик'})[r]||r||'—'}
+function options(el,items,placeholder){$(el).innerHTML='<option value="">'+placeholder+'</option>'+items.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}
 async function load(){
- const {data:u}=await db.auth.getUser(); if(!u.user)return showLogin();
+ const {data:u}=await db.auth.getUser();if(!u.user)return showLogin();
  const {data:p,error}=await db.from('vita_staff').select('*').eq('user_id',u.user.id).maybeSingle();
  if(error||!p||!p.active){await db.auth.signOut();showLogin();msg('loginMsg','Профиль сотрудника не найден или неактивен.');return}
- profile=p; $('login').classList.add('hidden');$('app').classList.remove('hidden');$('nav').classList.remove('hidden');
- $('staffName').textContent=p.full_name||p.username;$('staffRole').textContent=({admin:'Администратор',sales:'Торговый представитель',delivery:'Доставщик'})[p.role]||p.role;
- $('employeesNav').classList.toggle('hidden',p.role!=='admin');
+ profile=p;$('login').classList.add('hidden');$('app').classList.remove('hidden');$('nav').classList.remove('hidden');
+ $('staffName').textContent=p.full_name||p.username;$('staffRole').textContent=roleName(p.role);
+ $('employeesNav').classList.toggle('hidden',p.role!=='admin');$('managementNav').classList.toggle('hidden',p.role!=='admin');
  await refresh();
 }
 function showLogin(){$('login').classList.remove('hidden');$('app').classList.add('hidden');$('nav').classList.add('hidden')}
@@ -102,77 +140,94 @@ async function refresh(){
  const balance=finances.reduce((a,x)=>a+(x.direction==='debit'?1:-1)*Number(x.amount||0),0);
  $('salesTotal').textContent=money(sales);$('paidTotal').textContent=money(paid);$('debtTotal').textContent=money(balance);
  $('shopList').innerHTML=shops.map(x=>`<div class="item"><b>${esc(x.name)}</b><div class="muted">${esc(x.phone||'')}${x.address?' · '+esc(x.address):''}</div></div>`).join('')||'<p class="muted">Магазинов пока нет</p>';
- $('financeShop').innerHTML=shops.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
- $('reportText').textContent=`Магазинов: ${shops.length}. Продажи: ${money(sales)}. Получено оплат: ${money(paid)}. Баланс дебета/кредита: ${money(balance)}.`;
+ options('financeShop',shops.map(x=>({value:x.id,label:x.name})),'Выберите магазин');
+ $('reportText').textContent=`Магазинов: ${shops.length}. Продажи: ${money(sales)}. Получено оплат: ${money(paid)}. Общий баланс: ${money(balance)}.`;
+ if(profile.role==='admin')await loadManagement();
 }
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function loadManagement(){
+ const {data:people,error}=await db.from('vita_staff').select('user_id,full_name,username,role,active').order('full_name');
+ if(error){msg('salesAssignMsg','Не удалось загрузить сотрудников: '+error.message);return}
+ staff=people||[];
+ const sales=staff.filter(x=>x.role==='sales'&&x.active),delivery=staff.filter(x=>x.role==='delivery'&&x.active);
+ options('salesShop',shops.map(x=>({value:x.id,label:x.name})),'Выберите магазин');
+ options('deliveryShop',shops.map(x=>({value:x.id,label:x.name})),'Выберите магазин');
+ options('salesStaff',sales.map(x=>({value:x.user_id,label:x.full_name+' ('+x.username+')'})),'Выберите представителя');
+ options('planStaff',sales.map(x=>({value:x.user_id,label:x.full_name+' ('+x.username+')'})),'Выберите представителя');
+ options('deliveryStaff',delivery.map(x=>({value:x.user_id,label:x.full_name+' ('+x.username+')'})),'Выберите доставщика');
+ $('employeeList').innerHTML=staff.map(x=>`<div class="item"><b>${esc(x.full_name||x.username)}</b><div class="muted">${esc(x.username)} · ${esc(roleName(x.role))}</div><span class="tag">${x.active?'Активен':'Неактивен'}</span></div>`).join('')||'<p class="muted">Сотрудников пока нет</p>';
+ await loadAssignments();await loadPlans();
+}
+async function loadAssignments(){
+ const {data:rows,error}=await db.from('vita_shop_assignments').select('shop_id,delivery_id,active');
+ if(error){$('assignmentList').textContent='Не удалось загрузить назначения: '+error.message;return}
+ const active=(rows||[]).filter(x=>x.active);
+ $('assignmentList').innerHTML=shops.map(shop=>{
+  const assigned=active.find(a=>a.shop_id===shop.id);const person=assigned?staff.find(p=>p.user_id===assigned.delivery_id):null;
+  const rep=staff.find(p=>p.user_id===shop.sales_rep_id);
+  return `<div class="item"><b>${esc(shop.name)}</b><div class="muted">Представитель: ${esc(rep?.full_name||'Не назначен')}<br>Доставщик: ${esc(person?.full_name||'Не назначен')}</div></div>`;
+ }).join('')||'Магазинов пока нет';
+}
+async function loadPlans(){
+ const {data,error}=await db.from('vita_staff_plans').select('*').order('period_start',{ascending:false});
+ if(error){$('planList').textContent='Не удалось загрузить планы: '+error.message;return}
+ $('planList').innerHTML=(data||[]).map(p=>{const who=staff.find(x=>x.user_id===p.user_id);return `<div class="item"><b>${esc(who?.full_name||'Сотрудник')}</b><div class="muted">${esc(p.period_start)} — ${esc(p.period_end)} · План: ${money(p.target_amount)}</div></div>`}).join('')||'Планы пока не установлены';
+}
 $('loginBtn').onclick=async()=>{msg('loginMsg','Входим…');const {error}=await db.auth.signInWithPassword({email:$('email').value,password:$('password').value});if(error)msg('loginMsg',error.message);else await load()};
 $('logoutBtn').onclick=async()=>{await db.auth.signOut();showLogin()};
 document.querySelectorAll('nav button[data-page]').forEach(b=>b.onclick=()=>{
- if(b.dataset.page==='employees'&&profile?.role!=='admin')return;
- ['dashboard','shops','finance','reports','employees'].forEach(p=>$(p).classList.toggle('hidden',p!==b.dataset.page));
+ if((b.dataset.page==='employees'||b.dataset.page==='management')&&profile?.role!=='admin')return;
+ ['dashboard','shops','finance','reports','employees','management'].forEach(p=>$(p).classList.toggle('hidden',p!==b.dataset.page));
 });
 $('saveShop').onclick=async()=>{
  msg('shopMsg','Сохраняем…');const row={name:$('shopName').value.trim(),phone:$('shopPhone').value.trim()||null,address:$('shopAddress').value.trim()||null,notes:$('shopNotes').value.trim()||null};
- if(!row.name){msg('shopMsg','Введите название магазина');return}
- if(profile.role==='sales')row.sales_rep_id=profile.user_id;
- const {error}=await db.from('vita_shops').insert(row);
- msg('shopMsg',error?error.message:'Магазин добавлен');if(!error){['shopName','shopPhone','shopAddress','shopNotes','shopContact'].forEach(i=>$(i).value='');await refresh()}
+ if(!row.name){msg('shopMsg','Введите название магазина');return}if(profile.role==='sales')row.sales_rep_id=profile.user_id;
+ const {error}=await db.from('vita_shops').insert(row);msg('shopMsg',error?error.message:'Магазин добавлен',!error);
+ if(!error){['shopName','shopPhone','shopAddress','shopNotes','shopContact'].forEach(i=>$(i).value='');await refresh()}
 };
 $('saveFinance').onclick=async()=>{
- const type=$('operation').value, amount=Number($('amount').value), shop_id=$('financeShop').value;
+ const type=$('operation').value,amount=Number($('amount').value),shop_id=$('financeShop').value;
  if(!shop_id||!(amount>0)){msg('financeMsg','Выберите магазин и введите сумму');return}
  if(type!=='sale'&&!['admin','delivery'].includes(profile.role)){msg('financeMsg','У вас нет прав для этой операции');return}
- if(type==='adjustment'&&!['admin','delivery'].includes(profile.role)){msg('financeMsg','Нет прав на корректировку');return}
- let direction=type==='sale'?'debit':type==='payment'?'credit':type==='return'?'credit':'debit';
+ const direction=type==='sale'?'debit':type==='payment'||type==='return'?'credit':'debit';
  const row={shop_id,operation_type:type,amount,direction,due_date:$('dueDate').value||null,note:$('financeNote').value.trim()||null,created_by:profile.user_id};
- const {error}=await db.from('vita_shop_finances').insert(row);
- msg('financeMsg',error?error.message:'Операция сохранена');if(!error){$('amount').value='';$('financeNote').value='';await refresh()}
+ const {error}=await db.from('vita_shop_finances').insert(row);msg('financeMsg',error?error.message:'Операция сохранена',!error);
+ if(!error){$('amount').value='';$('financeNote').value='';await refresh()}
 };
 $('createEmployee').onclick=async()=>{
-  msg('employeeMsg','Создаём сотрудника…');
-  if(profile?.role!=='admin'){msg('employeeMsg','Только администратор может создавать сотрудников.');return}
-  const full_name=$('employeeFullName').value.trim();
-  const username=$('employeeUsername').value.trim();
-  const email=$('employeeEmail').value.trim();
-  const password=$('employeePassword').value;
-  const role=$('employeeRole').value;
-  if(!full_name||!username||!email||!password){msg('employeeMsg','Заполните все поля.');return}
-  if(password.length<6){msg('employeeMsg','Пароль должен содержать минимум 6 символов.');return}
-  $('createEmployee').disabled=true;
-  try{
-    const {data:sessionData,error:sessionError}=await db.auth.getSession();
-    if(sessionError)throw new Error('Не удалось проверить вход: '+sessionError.message);
-    const accessToken=sessionData?.session?.access_token;
-    if(!accessToken)throw new Error('Сессия не найдена. Выйдите из аккаунта и войдите снова.');
-
-    const {data,error}=await db.functions.invoke('create-vita-user',{
-      body:{full_name,username,email,password,role},
-      headers:{
-        Authorization:'Bearer '+accessToken,
-        apikey:SUPABASE_KEY
-      }
-    });
-
-    if(error){
-      let detail=error.message||'Ошибка вызова функции';
-      try{
-        const response=error.context;
-        if(response&&typeof response.json==='function'){
-          const body=await response.json();
-          detail=(body.error||body.message||'Ошибка')+(body.details?' — '+body.details:'');
-        }
-      }catch(_){}
-      throw new Error(detail);
-    }
-    if(data?.error)throw new Error(data.error);
-    msg('employeeMsg','Сотрудник успешно создан.');
-    ['employeeFullName','employeeUsername','employeeEmail','employeePassword'].forEach(id=>$(id).value='');
-  }catch(e){
-    msg('employeeMsg','Ошибка: '+(e.message||String(e)));
-  }finally{
-    $('createEmployee').disabled=false;
-  }
+ msg('employeeMsg','Создаём сотрудника…');if(profile?.role!=='admin'){msg('employeeMsg','Только администратор может создавать сотрудников.');return}
+ const full_name=$('employeeFullName').value.trim(),username=$('employeeUsername').value.trim(),email=$('employeeEmail').value.trim(),password=$('employeePassword').value,role=$('employeeRole').value;
+ if(!full_name||!username||!email||!password){msg('employeeMsg','Заполните все поля.');return}if(password.length<6){msg('employeeMsg','Пароль должен содержать минимум 6 символов.');return}
+ $('createEmployee').disabled=true;
+ try{
+  const {data:sessionData,error:sessionError}=await db.auth.getSession();if(sessionError)throw new Error(sessionError.message);
+  const accessToken=sessionData?.session?.access_token;if(!accessToken)throw new Error('Сессия не найдена. Войдите снова.');
+  const {data,error}=await db.functions.invoke('create-vita-user',{body:{full_name,username,email,password,role},headers:{Authorization:'Bearer '+accessToken,apikey:SUPABASE_KEY}});
+  if(error){let detail=error.message||'Ошибка вызова функции';try{const response=error.context;if(response&&typeof response.json==='function'){const body=await response.json();detail=(body.error||body.message||detail)+(body.details?' — '+body.details:'')}}catch(_){}throw new Error(detail)}
+  if(data?.error)throw new Error(data.error);
+  msg('employeeMsg','Сотрудник успешно создан.',true);['employeeFullName','employeeUsername','employeeEmail','employeePassword'].forEach(id=>$(id).value='');await loadManagement();
+ }catch(e){msg('employeeMsg','Ошибка: '+(e.message||String(e)))}
+ finally{$('createEmployee').disabled=false}
+};
+$('assignSales').onclick=async()=>{
+ const shop_id=$('salesShop').value,sales_rep_id=$('salesStaff').value;
+ if(!shop_id||!sales_rep_id){msg('salesAssignMsg','Выберите магазин и торгового представителя.');return}
+ const {error}=await db.from('vita_shops').update({sales_rep_id}).eq('id',shop_id);
+ msg('salesAssignMsg',error?'Ошибка: '+error.message:'Торговый представитель назначен.',!error);if(!error)await loadManagement();
+};
+$('assignDelivery').onclick=async()=>{
+ const shop_id=$('deliveryShop').value,delivery_id=$('deliveryStaff').value;
+ if(!shop_id||!delivery_id){msg('deliveryAssignMsg','Выберите магазин и доставщика.');return}
+ const {error:deactivateError}=await db.from('vita_shop_assignments').update({active:false}).eq('shop_id',shop_id).eq('active',true);
+ if(deactivateError){msg('deliveryAssignMsg','Не удалось обновить старое назначение: '+deactivateError.message);return}
+ const {error}=await db.from('vita_shop_assignments').insert({shop_id,delivery_id,assigned_by:profile.user_id,active:true});
+ msg('deliveryAssignMsg',error?'Ошибка: '+error.message:'Доставщик назначен.',!error);if(!error)await loadAssignments();
+};
+$('savePlan').onclick=async()=>{
+ const user_id=$('planStaff').value,period_start=$('planStart').value,period_end=$('planEnd').value,target_amount=Number($('planAmount').value);
+ if(!user_id||!period_start||!period_end||!Number.isFinite(target_amount)||target_amount<0){msg('planMsg','Заполните сотрудника, период и сумму плана.');return}
+ if(period_end<period_start){msg('planMsg','Конец периода не может быть раньше начала.');return}
+ const {error}=await db.from('vita_staff_plans').insert({user_id,period_start,period_end,target_amount,created_by:profile.user_id});
+ msg('planMsg',error?'Ошибка: '+error.message:'План сохранён.',!error);if(!error){$('planAmount').value='';await loadPlans()}
 };
 load();
 </script>
