@@ -130,24 +130,46 @@ $('saveFinance').onclick=async()=>{
  msg('financeMsg',error?error.message:'Операция сохранена');if(!error){$('amount').value='';$('financeNote').value='';await refresh()}
 };
 $('createEmployee').onclick=async()=>{
- msg('employeeMsg','Создаём сотрудника…');
- if(profile?.role!=='admin'){msg('employeeMsg','Только администратор может создавать сотрудников.');return}
- const full_name=$('employeeFullName').value.trim();
- const username=$('employeeUsername').value.trim();
- const email=$('employeeEmail').value.trim();
- const password=$('employeePassword').value;
- const role=$('employeeRole').value;
- if(!full_name||!username||!email||!password){msg('employeeMsg','Заполните все поля.');return}
- if(password.length<6){msg('employeeMsg','Пароль должен содержать минимум 6 символов.');return}
- $('createEmployee').disabled=true;
- try{
-  const {data,error}=await db.functions.invoke('create-vita-user',{body:{full_name,username,email,password,role}});
-  if(error)throw error;
-  if(data?.error)throw new Error(data.error);
-  msg('employeeMsg','Сотрудник успешно создан.');
-  ['employeeFullName','employeeUsername','employeeEmail','employeePassword'].forEach(id=>$(id).value='');
- }catch(e){msg('employeeMsg','Ошибка: '+(e.message||String(e)));}
- finally{$('createEmployee').disabled=false}
+  msg('employeeMsg','Создаём сотрудника…');
+  if(profile?.role!=='admin'){msg('employeeMsg','Только администратор может создавать сотрудников.');return}
+  const full_name=$('employeeFullName').value.trim();
+  const username=$('employeeUsername').value.trim();
+  const email=$('employeeEmail').value.trim();
+  const password=$('employeePassword').value;
+  const role=$('employeeRole').value;
+  if(!full_name||!username||!email||!password){msg('employeeMsg','Заполните все поля.');return}
+  if(password.length<6){msg('employeeMsg','Пароль должен содержать минимум 6 символов.');return}
+  $('createEmployee').disabled=true;
+  try{
+    const {data:sessionData,error:sessionError}=await db.auth.getSession();
+    if(sessionError)throw new Error('Не удалось проверить вход: '+sessionError.message);
+    const accessToken=sessionData?.session?.access_token;
+    if(!accessToken)throw new Error('Сессия не найдена. Выйдите из аккаунта и войдите снова.');
+
+    const {data,error}=await db.functions.invoke('create-vita-user',{
+      body:{full_name,username,email,password,role},
+      headers:{Authorization:'Bearer '+accessToken}
+    });
+
+    if(error){
+      let detail=error.message||'Ошибка вызова функции';
+      try{
+        const response=error.context;
+        if(response&&typeof response.json==='function'){
+          const body=await response.json();
+          detail=body.error||body.message||JSON.stringify(body);
+        }
+      }catch(_){}
+      throw new Error(detail);
+    }
+    if(data?.error)throw new Error(data.error);
+    msg('employeeMsg','Сотрудник успешно создан.');
+    ['employeeFullName','employeeUsername','employeeEmail','employeePassword'].forEach(id=>$(id).value='');
+  }catch(e){
+    msg('employeeMsg','Ошибка: '+(e.message||String(e)));
+  }finally{
+    $('createEmployee').disabled=false;
+  }
 };
 load();
 </script>
