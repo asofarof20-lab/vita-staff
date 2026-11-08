@@ -288,10 +288,11 @@ BEGIN
   END IF;
 
   INSERT INTO public.vita_shop_finances
-    (shop_id, operation_type, amount, direction, due_date, note, created_by)
+    (shop_id, operation_type, amount, direction, payment_method, due_date, note, created_by, change_reason)
   VALUES
-    (p_shop_id, 'payment', p_amount, 'credit', p_due_date,
-     COALESCE(NULLIF(trim(p_note),''),'Оплата принята бухгалтером'), auth.uid())
+    (p_shop_id, 'payment', p_amount, 'credit', 'cash', p_due_date,
+     COALESCE(NULLIF(trim(p_note),''),'Оплата принята бухгалтером'), auth.uid(),
+     'Оплата принята бухгалтером')
   RETURNING id INTO v_finance_id;
 
   -- The two audited movements net the accountant's personal balance to zero
