@@ -20,7 +20,7 @@ END $$;
 
 ALTER TABLE public.vita_staff
   ADD CONSTRAINT vita_staff_role_check
-  CHECK (role IN ('admin','sales','delivery','accountant'));
+  CHECK (role IS NOT NULL AND role IN ('admin','sales','delivery','accountant'));
 
 CREATE OR REPLACE FUNCTION public.vita_is_accountant()
 RETURNS boolean
@@ -126,7 +126,7 @@ CREATE TRIGGER vita_sync_cash_custody_movement
 AFTER INSERT ON public.vita_staff_cash_movements
 FOR EACH ROW EXECUTE FUNCTION public.vita_sync_cash_custody_movement();
 
--- 4) Balances include all active staff, including admin and delivery.
+-- 4) Balances include every employee, including admin, delivery and inactive staff with outstanding cash.
 CREATE OR REPLACE VIEW public.vita_cash_custody_balances
 WITH (security_invoker = true)
 AS
@@ -231,7 +231,7 @@ BEGIN
     SELECT 1 FROM public.vita_staff
     WHERE user_id = p_staff_id
   ) THEN
-    RAISE EXCEPTION 'Сотрудник не найден или неактивен';
+    RAISE EXCEPTION 'Сотрудник не найден';
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtextextended('vita-cash-' || p_staff_id::text, 0));
