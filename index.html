@@ -232,7 +232,7 @@ async function loadSalesRequests(){
   }
   let query=db.from('vita_sales_requests').select('*').order('delivery_date',{ascending:true}).order('created_at',{ascending:false});
   if(profile.role==='sales')query=query.eq('sales_rep_id',profile.user_id);
-  if(profile.role==='delivery')query=query.eq('delivery_id',profile.user_id);
+  if(profile.role==='delivery')query=query.eq('delivery_id',profile.user_id).lte('delivery_time',new Date().toISOString());
   const {data,error}=await query.limit(200);
   if(error){list.innerHTML='<div class="message err">Ошибка загрузки заявок: '+esc(error.message)+'</div>';return}
   const rows=data||[];
