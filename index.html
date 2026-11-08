@@ -252,14 +252,14 @@ async function loadSalesRequests(){
     const pay=x.payment_type==='cash'?'Наличные':'Долг';
     const state=x.status==='completed'?'Выполнена':x.status==='cancelled'?'Отменена':'Ожидает доставки';
     const result=x.delivery_result?'<div class="muted">Результат: '+esc(({paid_full:'Оплачено полностью',paid_partial:'Частичная оплата',debt:'Оставлено в долг',returned:'Возврат',no_contact:'Не удалось связаться'})[x.delivery_result]||x.delivery_result)+' · Получено: '+money(x.paid_amount)+' · Возврат: '+money(x.returned_amount)+(x.delivery_note?' · '+esc(x.delivery_note):'')+'</div>':'';
-    const action=profile.role==='delivery'&&x.status==='pending'?'<button class="smallbtn" onclick="openDeliveryForm(\\''+x.id+'\\','+Number(x.amount||0)+')">Отметить результат</button>':'';
+    const action=profile.role==='delivery'&&x.status==='pending'?'<button class="smallbtn" onclick="openDeliveryForm(\''+x.id+'\','+Number(x.amount||0)+')">Отметить результат</button>':'';
     return '<div class="event"><div class="shopico">📦</div><div class="grow"><b>'+esc(shop?.name||'Магазин')+' · '+money(x.amount)+'</b><div class="muted">'+esc(pay)+' · Доставка: '+esc(x.delivery_date)+' · '+esc(state)+'</div>'+result+action+'<div id="delivery-form-'+x.id+'" class="delivery-form hidden"></div></div></div>';
   }).join('')||'<div class="empty">Заявок пока нет</div>';
 }
 window.openDeliveryForm=(id,total)=>{
   const host=$('delivery-form-'+id);if(!host)return;
   host.classList.remove('hidden');
-  host.innerHTML='<div class="delivery-panel"><h3>Результат доставки</h3><label>Результат</label><select id="delivery-result-'+id+'" onchange="toggleDeliveryFields(\\''+id+'\\','+total+')"><option value="paid_full">Оплачено полностью</option><option value="paid_partial">Частичная оплата</option><option value="debt">Оставлено в долг</option><option value="returned">Возврат товара</option><option value="no_contact">Не удалось связаться</option></select><div id="delivery-paid-wrap-'+id+'" class="hidden"><label>Получено наличными (с.)</label><input id="delivery-paid-'+id+'" type="number" min="0" step="0.01"></div><div id="delivery-return-wrap-'+id+'" class="hidden"><label>Стоимость возврата (с.)</label><input id="delivery-return-'+id+'" type="number" min="0" step="0.01" value="'+total+'"></div><label>Комментарий</label><textarea id="delivery-note-'+id+'" rows="2" placeholder="Необязательно"></textarea><div class="actions"><button class="smallbtn" onclick="saveDeliveryResult(\\''+id+'\\','+total+')">Сохранить результат</button><button class="secondary smallbtn" onclick="closeDeliveryForm(\\''+id+'\\')">Отмена</button></div><div id="delivery-msg-'+id+'" class="message"></div></div>';
+  host.innerHTML='<div class="delivery-panel"><h3>Результат доставки</h3><label>Результат</label><select id="delivery-result-'+id+'" onchange="toggleDeliveryFields(\''+id+'\','+total+')"><option value="paid_full">Оплачено полностью</option><option value="paid_partial">Частичная оплата</option><option value="debt">Оставлено в долг</option><option value="returned">Возврат товара</option><option value="no_contact">Не удалось связаться</option></select><div id="delivery-paid-wrap-'+id+'" class="hidden"><label>Получено наличными (с.)</label><input id="delivery-paid-'+id+'" type="number" min="0" step="0.01"></div><div id="delivery-return-wrap-'+id+'" class="hidden"><label>Стоимость возврата (с.)</label><input id="delivery-return-'+id+'" type="number" min="0" step="0.01" value="'+total+'"></div><label>Комментарий</label><textarea id="delivery-note-'+id+'" rows="2" placeholder="Необязательно"></textarea><div class="actions"><button class="smallbtn" onclick="saveDeliveryResult(\''+id+'\','+total+')">Сохранить результат</button><button class="secondary smallbtn" onclick="closeDeliveryForm(\''+id+'\')">Отмена</button></div><div id="delivery-msg-'+id+'" class="message"></div></div>';
   toggleDeliveryFields(id,total);
 };
 window.toggleDeliveryFields=(id,total)=>{
@@ -288,7 +288,7 @@ window.saveDeliveryResult=async(id,total)=>{
   const {data,error}=await db.rpc('vita_complete_delivery_request',{p_request_id:id,p_delivery_result:result,p_paid_amount:paid_amount,p_returned_amount:returned_amount,p_delivery_note:delivery_note});
   if(error){say('delivery-msg-'+id,'Не удалось сохранить: '+error.message,'err');if(saveButton)saveButton.disabled=false;return}
   const debt=Number(data?.remaining_debt||0);
-  alert('Результат сохранён.\\nПолучено: '+money(paid_amount)+'\\nВозврат: '+money(returned_amount)+'\\nОстаток долга: '+money(debt));
+  alert('Результат сохранён.\nПолучено: '+money(paid_amount)+'\nВозврат: '+money(returned_amount)+'\nОстаток долга: '+money(debt));
   await loadSalesRequests();await loadMyPlan();
   if(!$('cash').classList.contains('hidden'))await loadCashManagement();
 };
