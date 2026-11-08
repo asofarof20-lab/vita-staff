@@ -108,7 +108,7 @@ async function refresh(){
 }
 function renderShops(){
   const q=$('shopSearch').value.trim().toLowerCase();
-  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const searchOk=!q||[s.name,s.phone,s.address].some(v=>String(v||'').toLowerCase().includes(q));const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&searchOk&&activityOk;});
+  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=profile.role!=='sales'||s.sales_rep_id===profile.user_id;const searchOk=!q||[s.name,s.phone,s.address].some(v=>String(v||'').toLowerCase().includes(q));const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&activityOk;});
   $('shopList').innerHTML=list.map(s=>{
     const canEdit=profile.role==='admin'||(profile.role==='sales'&&s.sales_rep_id===profile.user_id);
     const summary=shopSummaryMap.get(s.id)||{};
@@ -164,16 +164,27 @@ async function applyShopActivityFilter(filter){
     const from=$('shopFilterFrom').value,to=$('shopFilterTo').value;
     if(!from||!to||to<from){$('shopFilterInfo').textContent='Укажите корректный период.';renderShops();return}
     $('shopFilterInfo').textContent='Ищу магазины и суммы операций…';renderShops();
-    const startAt=new Date(from+'T00:00:00').toISOString();const endDate=new Date(to+'T00:00:00');endDate.setDate(endDate.getDate()+1);const endAt=endDate.toISOString();
-    let offset=0,total=0;
-    while(true){const {data,error}=await db.from('vita_shop_finances').select('shop_id,amount').eq('operation_type',filter).gte('created_at',startAt).lt('created_at',endAt).order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+499);if(error){$('shopFilterInfo').textContent='Ошибка поиска: '+error.message;renderShops();return}for(const row of data||[]){shopActivityMap.set(row.shop_id,(shopActivityMap.get(row.shop_id)||0)+Number(row.amount||0));total++}if(!data||data.length<500)break;offset+=500}
-    $('shopFilterInfo').textContent=(filter==='payment'?'Оплату вносили магазины: ':'Возврат был у магазинов: ')+shopActivityMap.size+' · Операций: '+total;
-  }else{$('shopFilterInfo').textContent=filter==='debt'?'Показаны только магазины с непогашенным долгом.':'Показаны все магазины по выбранному статусу.'}
+    const {data,error}=await db.rpc('vita_shop_activity_summary',{
+      p_operation_type:filter,
+      p_from:from,
+      p_to:to
+    });
+    if(error){
+      $('shopFilterInfo').textContent='Ошибка поиска: '+error.message;
+      renderShops();
+      return;
+    }
+    let totalOperations=0;
+    for(const row of data||[]){
+      shopActivityMap.set(row.shop_id,Number(row.total_amount||0));
+      totalOperations+=Number(row.operations_count||0);
+    }
+    $('shopFilterInfo').textContent=(filter==='payment'?'Оплату вносили магазины: ':'Возврат был у магазинов: ')+shopActivityMap.size+' · Операций: '+totalOperations;
+  }else{
+    $('shopFilterInfo').textContent=filter==='debt'?'Показаны только магазины с непогашенным долгом.':'Показаны все магазины по выбранному статусу.';
+  }
   renderShops();
 }
-document.querySelectorAll('[data-activity]').forEach(b=>b.onclick=()=>applyShopActivityFilter(b.dataset.activity));
-$('shopFilterFrom').onchange=()=>{if(shopActivityFilter==='payment'||shopActivityFilter==='return')applyShopActivityFilter(shopActivityFilter)};
-$('shopFilterTo').onchange=()=>{if(shopActivityFilter==='payment'||shopActivityFilter==='return')applyShopActivityFilter(shopActivityFilter)};
 
 
 window.editShop=id=>{const s=shops.find(x=>x.id===id);if(!s)return;$('editShopId').value=id;$('shopFormTitle').textContent='Изменить магазин';$('shopName').value=s.name||'';$('shopContact').value='';$('shopPhone').value=s.phone||'';$('shopAddress').value=s.address||'';$('shopNotes').value=s.notes||'';$('cancelShopEdit').classList.remove('hidden');$('shopEditor').scrollIntoView({behavior:'smooth'})};window.deactivateShop=async id=>{if(!confirm('Деактивировать магазин? Он исчезнет из активного списка, история останется.'))return;const {error}=await db.from('vita_shops').update({active:false}).eq('id',id);if(error)alert('Ошибка: '+error.message);else await refresh()};
