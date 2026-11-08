@@ -333,7 +333,7 @@ BEGIN
   FROM public.vita_staff
   WHERE user_id = auth.uid() AND active = true;
 
-  IF v_role NOT IN ('admin','delivery') THEN
+  IF v_role IS NULL OR v_role NOT IN ('admin','delivery') THEN
     RAISE EXCEPTION 'Доступно только администратору и доставщику';
   END IF;
   IF p_amount IS NULL OR p_amount <= 0 THEN
