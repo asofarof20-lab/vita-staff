@@ -43,6 +43,7 @@ input:focus,select:focus,textarea:focus{border-color:#6574ec;box-shadow:0 0 0 3p
 .shop-filter-title{font-size:14px;margin:16px 0 8px}.shop-activity-filters{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}.shop-activity-filters button{flex:1 1 auto;white-space:nowrap}.shop-period{margin:8px 0}.shop-period label{font-size:11px}.shop-period input{margin-top:4px}.shop-activity-tag{font-size:11px;color:var(--muted);margin-top:6px}
 @media(min-width:600px){.shop-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
+.delivery-panel{margin-top:12px;padding:13px;background:#f5f7fc;border:1px solid #e2e8f3;border-radius:14px}.delivery-panel h3{margin:0 0 8px}.delivery-panel .actions{margin-top:12px}.delivery-panel .actions button{min-width:0}.delivery-form{width:100%}
 @media(max-width:370px){.grid{gap:7px}.metric{padding:10px}.metric b{font-size:16px}.nav button{font-size:9px;min-width:48px}}
 </style></head>
 <body>
@@ -251,41 +252,43 @@ async function loadSalesRequests(){
     const pay=x.payment_type==='cash'?'Наличные':'Долг';
     const state=x.status==='completed'?'Выполнена':x.status==='cancelled'?'Отменена':'Ожидает доставки';
     const result=x.delivery_result?'<div class="muted">Результат: '+esc(({paid_full:'Оплачено полностью',paid_partial:'Частичная оплата',debt:'Оставлено в долг',returned:'Возврат',no_contact:'Не удалось связаться'})[x.delivery_result]||x.delivery_result)+' · Получено: '+money(x.paid_amount)+' · Возврат: '+money(x.returned_amount)+(x.delivery_note?' · '+esc(x.delivery_note):'')+'</div>':'';
-    const action=profile.role==='delivery'&&x.status==='pending'?'<button class="smallbtn" onclick="completeSalesRequest(\''+x.id+'\')">Отметить результат</button>':'';
-    return '<div class="event"><div class="shopico">📦</div><div class="grow"><b>'+esc(shop?.name||'Магазин')+' · '+money(x.amount)+'</b><div class="muted">'+esc(pay)+' · Доставка: '+esc(x.delivery_date)+' · '+esc(state)+'</div>'+result+action+'</div></div>';
-  }).join('')||'<div class="empty">Заявок пока нет</div>';
-}
-window.completeSalesRequest=async id=>{
-  const {data:row,error:readError}=await db.from('vita_sales_requests').select('id,amount').eq('id',id).eq('delivery_id',profile.user_id).maybeSingle();
-  if(readError||!row){alert('Не удалось открыть заявку: '+(readError?.message||'нет доступа'));return}
-  const total=Number(row.amount||0);
-  const choice=prompt('Результат доставки:\n1 — Оплачено полностью\n2 — Частично оплачено\n3 — Оставлено в долг\n4 — Возврат товара\n5 — Не удалось связаться');
-  const map={'1':'paid_full','2':'paid_partial','3':'debt','4':'returned','5':'no_contact'};
-  const delivery_result=map[choice];if(!delivery_result)return;
-  let paid_amount=delivery_result==='paid_full'?total:0,returned_amount=0;
-  if(delivery_result==='paid_partial'){
-    paid_amount=Number(prompt('Сколько магазин оплатил наличными? (с.)','0'));
-    if(!(paid_amount>0&&paid_amount<total)){alert('Для частичной оплаты сумма должна быть больше нуля и меньше суммы заявки.');return}
-  }
-  if(delivery_result==='returned'){
-    returned_amount=Number(prompt('Стоимость возвращённого товара (с.)',String(total)));
-    if(!(returned_amount>0&&returned_amount<=total)){alert('Проверьте сумму возврата.');return}
-    paid_amount=Number(prompt('Сколько магазин всё-таки оплатил наличными? (если ничего — 0)','0'));
-    if(!(paid_amount>=0&&paid_amount<=total-returned_amount)){alert('Сумма оплаты не может превышать остаток после возврата.');return}
-  }
-  const delivery_note=prompt('Комментарий (необязательно):','')||null;
-  const {data,error}=await db.rpc('vita_complete_delivery_request',{
-    p_request_id:id,
-    p_delivery_result:delivery_result,
-    p_paid_amount:paid_amount,
-    p_returned_amount:returned_amount,
-    p_delivery_note:delivery_note
-  });
-  if(error){alert('Не удалось провести доставку: '+error.message);return}
+    const action=profile.role==='delivery'&&x.status==='pending'?'<button class="smallbtn" onclick="openDeliveryForm(\\''+x.id+'\\','+Number(x.amount||0)+')">Отметить результат</button>':'';
+    return '<div class="event"><div class="shopico">📦</div><div class="grow"><b>'+esc(shop?.name||'Магазин')+' · '+money(x.amount)+'</b><div class="muted">'+esc(pay)+' · Доставка: '+esc(x.delivery_date)+' · '+esc(state)+'</div>'+result+action+'<div id="delivery-form-'+x.id+'" class="delivery-form window.openDeliveryForm=(id,total)=>{
+  const host=$('delivery-form-'+id);if(!host)return;
+  host.classList.remove('hidden');
+  host.innerHTML='<div class="delivery-panel"><h3>Результат доставки</h3><label>Что произошло?</label><select id="delivery-result-'+id+'" onchange="toggleDeliveryFields(\\''+id+'\\','+total+')"><option value="paid_full">Оплачено полностью</option><option value="paid_partial">Частичная оплата</option><option value="debt">Оставлено в долг</option><option value="returned">Возврат товара</option><option value="no_contact">Не удалось связаться</option></select><div id="delivery-paid-wrap-'+id+'"><label>Получено наличными (с.)</label><input id="delivery-paid-'+id+'" type="number" min="0" step="0.01" value="'+total+'"></div><div id="delivery-return-wrap-'+id+'" class="hidden"><label>Стоимость возврата (с.)</label><input id="delivery-return-'+id+'" type="number" min="0" step="0.01" value="'+total+'"></div><label>Комментарий</label><textarea id="delivery-note-'+id+'" rows="2" placeholder="Необязательно"></textarea><div class="actions"><button class="smallbtn" onclick="saveDeliveryResult(\\''+id+'\\','+total+')">Сохранить результат</button><button class="secondary smallbtn" onclick="closeDeliveryForm(\\''+id+'\\')">Отмена</button></div><div id="delivery-msg-'+id+'" class="message"></div></div>';
+  toggleDeliveryFields(id,total);
+};
+window.toggleDeliveryFields=(id,total)=>{
+  const result=$('delivery-result-'+id)?.value;
+  const paidWrap=$('delivery-paid-wrap-'+id),returnWrap=$('delivery-return-wrap-'+id),paid=$('delivery-paid-'+id),returned=$('delivery-return-'+id);
+  if(!paidWrap||!returnWrap)return;
+  paidWrap.classList.toggle('hidden',!['paid_partial','returned'].includes(result));
+  returnWrap.classList.toggle('hidden',result!=='returned');
+  if(paid&&result==='paid_partial')paid.value='';
+  if(paid&&result==='returned')paid.value='0';
+  if(returned&&result==='returned')returned.value=total;
+};
+window.closeDeliveryForm=id=>{const host=$('delivery-form-'+id);if(host){host.classList.add('hidden');host.innerHTML=''}};
+window.saveDeliveryResult=async(id,total)=>{
+  const result=$('delivery-result-'+id)?.value;
+  const paidField=$('delivery-paid-'+id),returnField=$('delivery-return-'+id);
+  let paid_amount=['paid_full','paid_partial','returned'].includes(result)?Number(paidField?.value||0):0;
+  let returned_amount=result==='returned'?Number(returnField?.value||0):0;
+  if(result==='paid_full')paid_amount=total;
+  if(result==='paid_partial'&&!(paid_amount>0&&paid_amount<total)){say('delivery-msg-'+id,'Укажите оплату больше нуля и меньше суммы заявки.','err');return}
+  if(result==='returned'&&(!(returned_amount>0&&returned_amount<=total)||!(paid_amount>=0&&paid_amount<=total-returned_amount))){say('delivery-msg-'+id,'Проверьте суммы: возврат не больше заявки, оплата не больше остатка.','err');return}
+  if(result==='paid_full'&&!(total>0)){say('delivery-msg-'+id,'Некорректная сумма заявки.','err');return}
+  const delivery_note=$('delivery-note-'+id)?.value.trim()||null;
+  const button=$('delivery-form-'+id)?.querySelector('button');
+  if(button)button.disabled=true;
+  const {data,error}=await db.rpc('vita_complete_delivery_request',{p_request_id:id,p_delivery_result:result,p_paid_amount:paid_amount,p_returned_amount:returned_amount,p_delivery_note:delivery_note});
+  if(error){say('delivery-msg-'+id,'Не удалось сохранить: '+error.message,'err');if(button)button.disabled=false;return}
   const debt=Number(data?.remaining_debt||0);
-  alert('Результат доставки сохранён.\nПолучено наличными: '+money(paid_amount)+'\nВозврат: '+money(returned_amount)+'\nОстаток долга: '+money(debt));
-  await loadSalesRequests();
-  await loadMyPlan();
+  alert('Результат сохранён.\\nПолучено: '+money(paid_amount)+'\\nВозврат: '+money(returned_amount)+'\\nОстаток долга: '+money(debt));
+  await loadSalesRequests();await loadMyPlan();
+  if(!$('cash').classList.contains('hidden'))await loadCashManagement();
+}; loadMyPlan();
   if(!$('cash').classList.contains('hidden'))await loadCashManagement();
 };
 $('saveRequest').onclick=async()=>{
