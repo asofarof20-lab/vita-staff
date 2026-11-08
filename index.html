@@ -186,6 +186,15 @@ async function applyShopActivityFilter(filter){
   renderShops();
 }
 
+document.querySelectorAll('[data-activity]').forEach(b=>{
+  b.onclick=()=>applyShopActivityFilter(b.dataset.activity);
+});
+$('shopFilterFrom').onchange=()=>{
+  if(shopActivityFilter==='payment'||shopActivityFilter==='return')applyShopActivityFilter(shopActivityFilter);
+};
+$('shopFilterTo').onchange=()=>{
+  if(shopActivityFilter==='payment'||shopActivityFilter==='return')applyShopActivityFilter(shopActivityFilter);
+};
 
 window.editShop=id=>{const s=shops.find(x=>x.id===id);if(!s)return;$('editShopId').value=id;$('shopFormTitle').textContent='Изменить магазин';$('shopName').value=s.name||'';$('shopContact').value='';$('shopPhone').value=s.phone||'';$('shopAddress').value=s.address||'';$('shopNotes').value=s.notes||'';$('cancelShopEdit').classList.remove('hidden');$('shopEditor').scrollIntoView({behavior:'smooth'})};window.deactivateShop=async id=>{if(!confirm('Деактивировать магазин? Он исчезнет из активного списка, история останется.'))return;const {error}=await db.from('vita_shops').update({active:false}).eq('id',id);if(error)alert('Ошибка: '+error.message);else await refresh()};
 $('shopSearch').oninput=renderShops;
