@@ -313,4 +313,57 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.vita_accountant_register_payment(uuid,numeric,text,date) TO authenticated;
 
+-- Admin and delivery payments are also written to the employee cash ledger.
+CREATE OR REPLACE FUNCTION public.vita_record_shop_payment_by_staff(
+  p_shop_id uuid,
+  p_amount numeric,
+  p_note text DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE
+  v_role text;
+  v_finance_id uuid;
+  v_note text;
+BEGIN
+  SELECT role INTO v_role
+  FROM public.vita_staff
+  WHERE user_id = auth.uid() AND active = true;
+
+  IF v_role NOT IN ('admin','delivery') THEN
+    RAISE EXCEPTION 'Доступно только администратору и доставщику';
+  END IF;
+  IF p_amount IS NULL OR p_amount <= 0 THEN
+    RAISE EXCEPTION 'Сумма должна быть больше нуля';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.vita_shops
+    WHERE id = p_shop_id AND active = true
+  ) THEN
+    RAISE EXCEPTION 'Магазин не найден или неактивен';
+  END IF;
+
+  v_note := COALESCE(NULLIF(trim(p_note),''),'Оплата принята сотрудником');
+
+  INSERT INTO public.vita_shop_finances
+    (shop_id, operation_type, amount, direction, payment_method, note, created_by, change_reason)
+  VALUES
+    (p_shop_id, 'payment', p_amount, 'credit', 'cash', v_note, auth.uid(),
+     'Оплата принята администратором или доставщиком')
+  RETURNING id INTO v_finance_id;
+
+  INSERT INTO public.vita_staff_cash_movements
+    (staff_id, movement_type, amount, recorded_by, note)
+  VALUES
+    (auth.uid(), 'collected', p_amount, auth.uid(), v_note);
+
+  RETURN v_finance_id;
+END;
+$;
+
+GRANT EXECUTE ON FUNCTION public.vita_record_shop_payment_by_staff(uuid,numeric,text) TO authenticated;
+
 COMMIT;
