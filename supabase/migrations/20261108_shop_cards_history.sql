@@ -9,6 +9,9 @@ CREATE INDEX IF NOT EXISTS vita_shop_finances_shop_created_idx
 CREATE INDEX IF NOT EXISTS vita_shop_finances_created_idx
   ON public.vita_shop_finances (created_at DESC, id DESC);
 
+CREATE INDEX IF NOT EXISTS vita_shop_finances_operation_created_idx
+  ON public.vita_shop_finances (operation_type, created_at DESC, id DESC, shop_id);
+
 CREATE OR REPLACE VIEW public.vita_shop_finance_summary
 WITH (security_invoker = true)
 AS
