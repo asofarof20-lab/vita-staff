@@ -93,8 +93,7 @@ BEGIN
        COALESCE(NEW.recorded_by, NEW.staff_id), NEW.note, NEW.created_at)
     ON CONFLICT (source_movement_id) DO NOTHING;
   ELSIF NEW.movement_type = 'handed_over'
-        AND NEW.recorded_by IS NOT NULL
-        AND NEW.recorded_by <> NEW.staff_id THEN
+        AND NEW.recorded_by IS NOT NULL THEN
     SELECT role INTO v_receiver_role
     FROM public.vita_staff
     WHERE user_id = NEW.recorded_by AND active = true;
@@ -108,7 +107,7 @@ BEGIN
         (NEW.id, 'office_receipt', NEW.staff_id, NULL, NEW.amount,
          NEW.recorded_by, NEW.note, NEW.created_at)
       ON CONFLICT (source_movement_id) DO NOTHING;
-    ELSE
+    ELSIF NEW.recorded_by <> NEW.staff_id THEN
       -- Existing admin handover reduces the sender and credits the admin.
       INSERT INTO public.vita_cash_custody_movements
         (source_movement_id, movement_type, from_staff_id, to_staff_id, amount, recorded_by, note, created_at)
@@ -259,5 +258,59 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.vita_accountant_receive_cash(uuid,numeric,text) TO authenticated;
+
+-- When the accountant records a shop payment directly, it is booked as
+-- incoming finance and immediately deposited into the office cash register.
+CREATE OR REPLACE FUNCTION public.vita_accountant_register_payment(
+  p_shop_id uuid,
+  p_amount numeric,
+  p_note text DEFAULT NULL,
+  p_due_date date DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE
+  v_finance_id uuid;
+BEGIN
+  IF NOT public.vita_is_accountant() THEN
+    RAISE EXCEPTION 'Доступно только бухгалтеру';
+  END IF;
+  IF p_amount IS NULL OR p_amount <= 0 THEN
+    RAISE EXCEPTION 'Сумма должна быть больше нуля';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.vita_shops
+    WHERE id = p_shop_id AND active = true
+  ) THEN
+    RAISE EXCEPTION 'Магазин не найден или неактивен';
+  END IF;
+
+  INSERT INTO public.vita_shop_finances
+    (shop_id, operation_type, amount, direction, due_date, note, created_by)
+  VALUES
+    (p_shop_id, 'payment', p_amount, 'credit', p_due_date,
+     COALESCE(NULLIF(trim(p_note),''),'Оплата принята бухгалтером'), auth.uid())
+  RETURNING id INTO v_finance_id;
+
+  -- The two audited movements net the accountant's personal balance to zero
+  -- and post the same amount to the office register through the custody trigger.
+  INSERT INTO public.vita_staff_cash_movements
+    (staff_id, movement_type, amount, recorded_by, note)
+  VALUES
+    (auth.uid(), 'collected', p_amount, auth.uid(), COALESCE(NULLIF(trim(p_note),''),'Оплата магазина принята бухгалтером'));
+
+  INSERT INTO public.vita_staff_cash_movements
+    (staff_id, movement_type, amount, recorded_by, note)
+  VALUES
+    (auth.uid(), 'handed_over', p_amount, auth.uid(), 'Сразу внесено в кассу офиса');
+
+  RETURN v_finance_id;
+END;
+$;
+
+GRANT EXECUTE ON FUNCTION public.vita_accountant_register_payment(uuid,numeric,text,date) TO authenticated;
 
 COMMIT;
