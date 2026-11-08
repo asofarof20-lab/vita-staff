@@ -117,7 +117,7 @@ async function loadCashManagement(){
   $('cashBalances').innerHTML=rows.map(x=>`<div class="employee"><div class="avatar">${esc((x.full_name||'?').slice(0,1).toUpperCase())}</div><div class="grow"><b>${esc(x.full_name||'Сотрудник')}</b><div class="muted">${esc(roleName(x.role))} · Собрано: ${money(x.total_collected)} · Передано: ${money(x.total_handed_over)}</div></div><span class="pill ${Number(x.cash_on_hand)>0?'orange':''}">${money(x.cash_on_hand)}</span></div>`).join('')||'<div class="empty">Нет активных сотрудников</div>';
   const eligible=staff.filter(x=>x.active&&x.role==='sales');
   options('handoverStaff',eligible.map(x=>({value:x.user_id,label:x.full_name+' — '+roleName(x.role)})),'Выберите сотрудника');
-  const accountantsEligible=staff.filter(x=>x.active&&x.user_id!==profile.user_id);
+  const accountantsEligible=staff.filter(x=>x.user_id!==profile.user_id&&Number(rows.find(b=>b.staff_id===x.user_id)?.cash_on_hand||0)>0);
   options('accountantStaff',accountantsEligible.map(x=>({value:x.user_id,label:x.full_name+' — '+roleName(x.role)})),'Выберите сотрудника');
   $('cashHistory').innerHTML=(movements||[]).map(x=>{
     const from=staff.find(s=>s.user_id===x.from_staff_id),to=staff.find(s=>s.user_id===x.to_staff_id),by=staff.find(s=>s.user_id===x.recorded_by);
