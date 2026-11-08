@@ -256,19 +256,32 @@ window.completeSalesRequest=async id=>{
   const delivery_result=map[choice];if(!delivery_result)return;
   let paid_amount=delivery_result==='paid_full'?total:0,returned_amount=0;
   if(delivery_result==='paid_partial'){
-    paid_amount=Number(prompt('Сколько магазин оплатил? (с.)','0'));
-    if(!(paid_amount>0&&paid_amount<=total)){alert('Сумма оплаты должна быть больше нуля и не больше суммы заявки.');return}
+    paid_amount=Number(prompt('Сколько магазин оплатил наличными? (с.)','0'));
+    if(!(paid_amount>0&&paid_amount<total)){alert('Для частичной оплаты сумма должна быть больше нуля и меньше суммы заявки.');return}
   }
   if(delivery_result==='returned'){
-    returned_amount=Number(prompt('Сумма возврата (с.)',String(total)));
+    returned_amount=Number(prompt('Стоимость возвращённого товара (с.)',String(total)));
     if(!(returned_amount>0&&returned_amount<=total)){alert('Проверьте сумму возврата.');return}
-    paid_amount=Number(prompt('Сколько магазин всё-таки оплатил? (если ничего — 0)','0'));
+    paid_amount=Number(prompt('Сколько магазин всё-таки оплатил наличными? (если ничего — 0)','0'));
     if(!(paid_amount>=0&&paid_amount<=total-returned_amount)){alert('Сумма оплаты не может превышать остаток после возврата.');return}
   }
   const delivery_note=prompt('Комментарий (необязательно):','')||null;
-  const {error}=await db.from('vita_sales_requests').update({delivery_result,paid_amount,returned_amount,delivery_note,status:'completed',completed_at:new Date().toISOString()}).eq('id',id).eq('delivery_id',profile.user_id);
-  if(error){alert('Не удалось сохранить результат: '+error.message);return}
+  const button=event?.currentTarget;
+  if(button)button.disabled=true;
+  const {data,error}=await db.rpc('vita_complete_delivery_request',{
+    p_request_id:id,
+    p_delivery_result:delivery_result,
+    p_paid_amount:paid_amount,
+    p_returned_amount:returned_amount,
+    p_delivery_note:delivery_note
+  });
+  if(button)button.disabled=false;
+  if(error){alert('Не удалось провести доставку: '+error.message);return}
+  const debt=Number(data?.remaining_debt||0);
+  alert('Результат доставки сохранён.\nПолучено наличными: '+money(paid_amount)+'\nВозврат: '+money(returned_amount)+'\nОстаток долга: '+money(debt));
   await loadSalesRequests();
+  await loadMyPlan();
+  if(!$('cash').classList.contains('hidden'))await loadCashManagement();
 };
 $('saveRequest').onclick=async()=>{
   if(profile?.role!=='sales')return;
