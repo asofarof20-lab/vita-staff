@@ -305,27 +305,36 @@ async function loadManagement(){
   const activeStaff=staff.filter(x=>x.active);
   options('planStaff',activeStaff.filter(x=>x.role==='sales').map(x=>({value:x.user_id,label:x.full_name+' — '+roleName(x.role)})),'Выберите сотрудника');
   $('employeeList').innerHTML=staff.map(x=>`<div class="employee"><div class="avatar">${esc((x.full_name||x.username||'?').slice(0,1).toUpperCase())}</div><div class="grow"><b>${esc(x.full_name||x.username)}</b><div class="muted">${esc(roleName(x.role))} · ${esc(x.username)}</div><span class="pill ${x.active?'':'red'}">${x.active?'Активен':'Неактивен'}</span></div><button class="secondary smallbtn" onclick="editEmployee('${x.user_id}')">Изменить</button>${x.active?`<button class="danger smallbtn" onclick="deactivateEmployee('${x.user_id}')">Удалить</button>`:''}</div>`).join('')||'<div class="empty">Сотрудников пока нет</div>';
-  const [{data:plans,error:pe},{data:firstRequests,error:re}]=await Promise.all([
+  const [{data:plans,error:pe},{data:firstRequests,error:re},{data:firstPending,error:pre}]=await Promise.all([
     db.from('vita_staff_plans').select('*').order('period_start',{ascending:false}),
-    db.from('vita_sales_requests').select('sales_rep_id,status,amount,returned_amount,completed_at').eq('status','completed').not('completed_at','is',null).order('completed_at',{ascending:false}).range(0,999)
+    db.from('vita_sales_requests').select('sales_rep_id,status,amount,returned_amount,completed_at,delivery_result').eq('status','completed').not('completed_at','is',null).order('completed_at',{ascending:false}).range(0,999),
+    db.from('vita_sales_requests').select('sales_rep_id,status,amount,created_at').eq('status','pending').order('created_at',{ascending:false}).range(0,999)
   ]);
   if(pe){$('planList').textContent='Ошибка загрузки планов: '+pe.message;return}
-  if(re){$('planList').textContent='Планы загружены, но не удалось загрузить выполнение: '+re.message;return}
-  let completed=firstRequests||[],offset=1000;
+  if(re||pre){$('planList').textContent='Планы загружены, но не удалось загрузить заявки: '+(re||pre).message;return}
+  let completed=firstRequests||[],pendingRows=firstPending||[],offset=1000;
   while(firstRequests&&firstRequests.length===1000){
-    const {data,error}=await db.from('vita_sales_requests').select('sales_rep_id,status,amount,returned_amount,completed_at').eq('status','completed').not('completed_at','is',null).order('completed_at',{ascending:false}).range(offset,offset+999);
+    const {data,error}=await db.from('vita_sales_requests').select('sales_rep_id,status,amount,returned_amount,completed_at,delivery_result').eq('status','completed').not('completed_at','is',null).order('completed_at',{ascending:false}).range(offset,offset+999);
     if(error){$('planList').textContent='Ошибка загрузки продаж: '+error.message;return}
     completed=completed.concat(data||[]);if(!data||data.length<1000)break;offset+=1000;
   }
+  offset=1000;
+  while(firstPending&&firstPending.length===1000){
+    const {data,error}=await db.from('vita_sales_requests').select('sales_rep_id,status,amount,created_at').eq('status','pending').order('created_at',{ascending:false}).range(offset,offset+999);
+    if(error){$('planList').textContent='Ошибка загрузки ожидающих заявок: '+error.message;return}
+    pendingRows=pendingRows.concat(data||[]);if(!data||data.length<1000)break;offset+=1000;
+  }
   const today=new Date(),todayKey=new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
-  const actualFor=p=>completed.filter(x=>x.sales_rep_id===p.user_id&&x.completed_at&&x.completed_at.slice(0,10)>=p.period_start&&x.completed_at.slice(0,10)<=p.period_end).reduce((sum,x)=>sum+Math.max(0,Number(x.amount||0)-Number(x.returned_amount||0)),0);
+  const actualFor=p=>completed.filter(x=>x.sales_rep_id===p.user_id&&x.delivery_result!=='no_contact'&&x.completed_at&&x.completed_at.slice(0,10)>=p.period_start&&x.completed_at.slice(0,10)<=p.period_end).reduce((sum,x)=>sum+Math.max(0,Number(x.amount||0)-Number(x.returned_amount||0)),0);
+  const pendingFor=p=>pendingRows.filter(x=>x.sales_rep_id===p.user_id&&x.created_at&&x.created_at.slice(0,10)>=p.period_start&&x.created_at.slice(0,10)<=p.period_end).reduce((sum,x)=>sum+Number(x.amount||0),0);
   const currentPlans=(plans||[]).filter(p=>p.period_start<=todayKey&&p.period_end>=todayKey);
   const teamTarget=currentPlans.reduce((sum,p)=>sum+Number(p.target_amount||0),0);
   const teamActual=currentPlans.reduce((sum,p)=>sum+actualFor(p),0);
   const teamPct=teamTarget>0?Math.min(100,Math.round(teamActual/teamTarget*100)):0;
   $('teamPlanTotal').textContent=money(teamTarget);$('teamPlanActual').textContent=money(teamActual);$('teamPlanProgress').style.width=teamPct+'%';
-  $('teamPlanCaption').textContent=currentPlans.length?('Активных планов: '+currentPlans.length+' · Выполнение: '+teamPct+'% · Период определяется датами каждого плана.'):'На сегодня нет действующих планов.';
-  $('planList').innerHTML=(plans||[]).map(p=>{const who=staff.find(x=>x.user_id===p.user_id),actual=actualFor(p),target=Number(p.target_amount||0),pct=target>0?Math.round(actual/target*100):0;return `<div class="event"><div class="grow"><b>${esc(who?.full_name||'Сотрудник')}</b><div class="muted">${esc(p.period_start)} — ${esc(p.period_end)} · Выполнено: ${money(actual)} · ${pct}%</div></div><b>${money(target)}</b></div>`}).join('')||'Планы пока не установлены';
+  const teamPending=currentPlans.reduce((sum,p)=>sum+pendingFor(p),0);
+  $('teamPlanCaption').textContent=currentPlans.length?('Активных планов: '+currentPlans.length+' · Факт: '+money(teamActual)+' · Ожидает доставки: '+money(teamPending)+' · Выполнение: '+teamPct+'%.'):'На сегодня нет действующих планов.';
+  $('planList').innerHTML=(plans||[]).map(p=>{const who=staff.find(x=>x.user_id===p.user_id),actual=actualFor(p),pending=pendingFor(p),target=Number(p.target_amount||0),pct=target>0?Math.round(actual/target*100):0;return `<div class="event"><div class="grow"><b>${esc(who?.full_name||'Сотрудник')}</b><div class="muted">${esc(p.period_start)} — ${esc(p.period_end)} · Факт: ${money(actual)} · Ожидает доставки: ${money(pending)} · ${pct}%</div></div><b>${money(target)}</b></div>`}).join('')||'Планы пока не установлены';
 }
 
 async function loadCashManagement(){
@@ -434,11 +443,16 @@ async function loadMyPlan(){
   if(error){$('planValue').textContent='Ошибка загрузки';$('planPercent').textContent=error.message;return}
   const p=data?.[0];$('planCaption').textContent='Мой план на месяц';
   if(!p){$('planValue').textContent='План не установлен';$('planProgress').style.width='0%';$('planPercent').textContent='0%';return}
-  const {data:rows,error:requestError}=await db.from('vita_sales_requests').select('amount,returned_amount,completed_at').eq('sales_rep_id',profile.user_id).eq('status','completed').not('completed_at','is',null).gte('completed_at',p.period_start+'T00:00:00').lt('completed_at',new Date(new Date(p.period_end+'T00:00:00').getTime()+86400000).toISOString());
-  if(requestError){$('planValue').textContent=money(p.target_amount);$('planPercent').textContent='Ошибка загрузки продаж: '+requestError.message;return}
-  const actual=(rows||[]).reduce((sum,x)=>sum+Math.max(0,Number(x.amount||0)-Number(x.returned_amount||0)),0);
+  const periodEnd=new Date(new Date(p.period_end+'T00:00:00').getTime()+86400000).toISOString();
+  const [{data:rows,error:requestError},{data:pending,error:pendingError}]=await Promise.all([
+    db.from('vita_sales_requests').select('amount,returned_amount,completed_at,delivery_result').eq('sales_rep_id',profile.user_id).eq('status','completed').not('completed_at','is',null).gte('completed_at',p.period_start+'T00:00:00').lt('completed_at',periodEnd),
+    db.from('vita_sales_requests').select('amount,created_at').eq('sales_rep_id',profile.user_id).eq('status','pending').gte('created_at',p.period_start+'T00:00:00').lt('created_at',periodEnd)
+  ]);
+  if(requestError||pendingError){$('planValue').textContent=money(p.target_amount);$('planPercent').textContent='Ошибка загрузки заявок: '+(requestError||pendingError).message;return}
+  const actual=(rows||[]).filter(x=>x.delivery_result!=='no_contact').reduce((sum,x)=>sum+Math.max(0,Number(x.amount||0)-Number(x.returned_amount||0)),0);
+  const expected=(pending||[]).reduce((sum,x)=>sum+Number(x.amount||0),0);
   const pct=Number(p.target_amount)>0?Math.min(100,Math.round(actual/Number(p.target_amount)*100)):0;
-  $('planProgress').style.width=pct+'%';$('planPercent').textContent='Выполнено: '+money(actual)+' • '+pct+'%';$('planValue').textContent=money(p.target_amount);
+  $('planProgress').style.width=pct+'%';$('planPercent').textContent='Факт: '+money(actual)+' • Ожидает доставки: '+money(expected)+' • '+pct+'%';$('planValue').textContent=money(p.target_amount);
 }
 $('loginBtn').onclick=async()=>{const email=$('email').value.trim().toLowerCase();const password=$('password').value;if(!email||!password){say('loginMsg','Введите email и пароль.','err');return}const button=$('loginBtn');button.disabled=true;say('loginMsg','Входим…');try{const {error}=await db.auth.signInWithPassword({email,password});if(error){say('loginMsg',error.message,'err');return}await load()}catch(e){say('loginMsg','Ошибка входа: '+(e?.message||'проверьте подключение'),'err')}finally{button.disabled=false}};$('logoutBtn').onclick=async()=>{await db.auth.signOut();profile=null;showLogin()};document.querySelectorAll('.nav button[data-page]').forEach(b=>b.onclick=()=>{go(b.dataset.page);if(b.dataset.page==='salesRequests')loadSalesRequests()});document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));load();
 </script></body></html>
