@@ -136,15 +136,26 @@ $('recordHandover').onclick=async()=>{
   if(error){say('handoverMsg','Ошибка: '+error.message,'err');return}
   say('handoverMsg','Деньги приняты и записаны на баланс администратора','ok');$('handoverAmount').value='';$('handoverNote').value='';await loadCashManagement();
 };
-function generateAccountantReport(){
+async function generateAccountantReport(){
   if(profile?.role!=='accountant')return;
-  const from=$('accountantReportFrom').value,to=$('accountantReportTo').value;
+  const from=$('accountantReportFrom').value,to=$('accountantReportTo').value,button=$('generateAccountantReport');
   if(!from||!to||to<from){$('accountantReport').textContent='Укажите корректный период.';return}
-  const rows=cashCustodyMovements.filter(x=>x.movement_type==='office_receipt'&&x.recorded_by===profile.user_id&&x.created_at.slice(0,10)>=from&&x.created_at.slice(0,10)<=to);
+  const start=new Date(from+'T00:00:00').toISOString(),endDate=new Date(to+'T00:00:00');endDate.setDate(endDate.getDate()+1);
+  button.disabled=true;$('accountantReport').textContent='Формирую отчёт…';
+  let rows=[],offset=0;
+  while(true){
+    const {data,error}=await db.from('vita_cash_custody_movements').select('from_staff_id,amount,recorded_by,created_at,note')
+      .eq('movement_type','office_receipt').eq('recorded_by',profile.user_id)
+      .gte('created_at',start).lt('created_at',endDate.toISOString())
+      .order('created_at',{ascending:false}).range(offset,offset+999);
+    if(error){$('accountantReport').textContent='Ошибка отчёта: '+error.message;button.disabled=false;return}
+    rows=rows.concat(data||[]);if(!data||data.length<1000)break;offset+=1000;
+  }
   const total=rows.reduce((a,x)=>a+Number(x.amount||0),0),groups={};
   rows.forEach(x=>{const key=x.from_staff_id||'unknown';if(!groups[key])groups[key]={amount:0,count:0};groups[key].amount+=Number(x.amount||0);groups[key].count++});
   const details=Object.entries(groups).map(([id,x])=>{const p=staff.find(y=>y.user_id===id);return `<div class="event"><div class="grow"><b>${esc(p?.full_name||'Сотрудник')}</b><div class="muted">Принято операций: ${x.count}</div></div><b>${money(x.amount)}</b></div>`}).join('');
   $('accountantReport').innerHTML=`<b>Итого принято: ${money(total)}</b><div class="muted">${rows.length} операций · ${esc(from)} — ${esc(to)}</div>${details||'<div class="empty">За этот период приёмов нет</div>'}`;
+  button.disabled=false;
 }
 $('generateAccountantReport').onclick=generateAccountantReport;
 $('recordAccountantReceipt').onclick=async()=>{
