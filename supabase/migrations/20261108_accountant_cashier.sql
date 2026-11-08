@@ -140,7 +140,6 @@ SELECT
 FROM public.vita_staff s
 LEFT JOIN public.vita_cash_custody_movements c
   ON c.to_staff_id = s.user_id OR c.from_staff_id = s.user_id
-WHERE s.active = true
 GROUP BY s.user_id, s.full_name, s.role;
 
 CREATE OR REPLACE VIEW public.vita_cash_office_balance
@@ -230,7 +229,7 @@ BEGIN
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM public.vita_staff
-    WHERE user_id = p_staff_id AND active = true
+    WHERE user_id = p_staff_id
   ) THEN
     RAISE EXCEPTION 'Сотрудник не найден или неактивен';
   END IF;
