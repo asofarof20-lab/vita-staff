@@ -323,7 +323,7 @@ RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   v_role text;
   v_finance_id uuid;
@@ -362,7 +362,7 @@ BEGIN
 
   RETURN v_finance_id;
 END;
-$;
+$$;
 
 GRANT EXECUTE ON FUNCTION public.vita_record_shop_payment_by_staff(uuid,numeric,text) TO authenticated;
 
