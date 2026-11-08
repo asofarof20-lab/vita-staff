@@ -166,7 +166,7 @@ async function applyShopActivityFilter(filter){
     $('shopFilterInfo').textContent='Ищу магазины и суммы операций…';renderShops();
     const startAt=new Date(from+'T00:00:00').toISOString();const endDate=new Date(to+'T00:00:00');endDate.setDate(endDate.getDate()+1);const endAt=endDate.toISOString();
     let offset=0,total=0;
-    while(true){const {data,error}=await db.from('vita_shop_finances').select('shop_id,amount').eq('operation_type',filter).gte('created_at',startAt).lt('created_at',endAt).order('created_at',{ascending:false}).range(offset,offset+499);if(error){$('shopFilterInfo').textContent='Ошибка поиска: '+error.message;renderShops();return}for(const row of data||[]){shopActivityMap.set(row.shop_id,(shopActivityMap.get(row.shop_id)||0)+Number(row.amount||0));total++}if(!data||data.length<500)break;offset+=500}
+    while(true){const {data,error}=await db.from('vita_shop_finances').select('shop_id,amount').eq('operation_type',filter).gte('created_at',startAt).lt('created_at',endAt).order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+499);if(error){$('shopFilterInfo').textContent='Ошибка поиска: '+error.message;renderShops();return}for(const row of data||[]){shopActivityMap.set(row.shop_id,(shopActivityMap.get(row.shop_id)||0)+Number(row.amount||0));total++}if(!data||data.length<500)break;offset+=500}
     $('shopFilterInfo').textContent=(filter==='payment'?'Оплату вносили магазины: ':'Возврат был у магазинов: ')+shopActivityMap.size+' · Операций: '+total;
   }else{$('shopFilterInfo').textContent=filter==='debt'?'Показаны только магазины с непогашенным долгом.':'Показаны все магазины по выбранному статусу.'}
   renderShops();
