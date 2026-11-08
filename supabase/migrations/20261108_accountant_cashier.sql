@@ -82,6 +82,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_receiver_role text;
 BEGIN
   IF NEW.movement_type = 'collected' THEN
     INSERT INTO public.vita_cash_custody_movements
@@ -93,14 +95,28 @@ BEGIN
   ELSIF NEW.movement_type = 'handed_over'
         AND NEW.recorded_by IS NOT NULL
         AND NEW.recorded_by <> NEW.staff_id THEN
-    -- Existing admin handover reduces the sender's old balance.
-    -- This ledger entry additionally credits the receiving admin.
-    INSERT INTO public.vita_cash_custody_movements
-      (source_movement_id, movement_type, from_staff_id, to_staff_id, amount, recorded_by, note, created_at)
-    VALUES
-      (NEW.id, 'transfer', NEW.staff_id, NEW.recorded_by, NEW.amount,
-       NEW.recorded_by, NEW.note, NEW.created_at)
-    ON CONFLICT (source_movement_id) DO NOTHING;
+    SELECT role INTO v_receiver_role
+    FROM public.vita_staff
+    WHERE user_id = NEW.recorded_by AND active = true;
+
+    IF v_receiver_role = 'accountant' THEN
+      -- Accountant receipt moves the cash out of the employee's balance
+      -- and into the office register, not into the accountant's personal balance.
+      INSERT INTO public.vita_cash_custody_movements
+        (source_movement_id, movement_type, from_staff_id, to_staff_id, amount, recorded_by, note, created_at)
+      VALUES
+        (NEW.id, 'office_receipt', NEW.staff_id, NULL, NEW.amount,
+         NEW.recorded_by, NEW.note, NEW.created_at)
+      ON CONFLICT (source_movement_id) DO NOTHING;
+    ELSE
+      -- Existing admin handover reduces the sender and credits the admin.
+      INSERT INTO public.vita_cash_custody_movements
+        (source_movement_id, movement_type, from_staff_id, to_staff_id, amount, recorded_by, note, created_at)
+      VALUES
+        (NEW.id, 'transfer', NEW.staff_id, NEW.recorded_by, NEW.amount,
+         NEW.recorded_by, NEW.note, NEW.created_at)
+      ON CONFLICT (source_movement_id) DO NOTHING;
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -230,10 +246,12 @@ BEGIN
     RAISE EXCEPTION 'Недостаточно денег на руках. Доступно: %', COALESCE(v_available,0);
   END IF;
 
-  INSERT INTO public.vita_cash_custody_movements
-    (movement_type, from_staff_id, to_staff_id, amount, recorded_by, note)
+  -- Insert into the existing audited cash-movement table. Its trigger mirrors
+  -- this handover into the custody ledger and the old balance view subtracts it.
+  INSERT INTO public.vita_staff_cash_movements
+    (staff_id, movement_type, amount, recorded_by, note)
   VALUES
-    ('office_receipt', p_staff_id, NULL, p_amount, auth.uid(), NULLIF(trim(p_note),''))
+    (p_staff_id, 'handed_over', p_amount, auth.uid(), NULLIF(trim(p_note),''))
   RETURNING id INTO v_id;
 
   RETURN v_id;
