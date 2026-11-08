@@ -77,6 +77,8 @@ $('saveFinance').onclick=async()=>{
   const note=$('financeNote').value.trim()||null;let error=null;
   if(type==='payment'&&profile.role==='sales'){
     const result=await db.rpc('vita_record_shop_payment_by_sales',{p_shop_id:shop_id,p_amount:amount,p_note:note});error=result.error;
+  }else if(type==='payment'&&profile.role==='accountant'){
+    const result=await db.rpc('vita_accountant_register_payment',{p_shop_id:shop_id,p_amount:amount,p_note:note,p_due_date:$('dueDate').value||null});error=result.error;
   }else{
     const row={shop_id,operation_type:type,amount,direction,due_date:$('dueDate').value||null,note,created_by:profile.user_id};
     const result=await db.from('vita_shop_finances').insert(row);error=result.error;
