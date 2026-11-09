@@ -79,14 +79,24 @@ function go(page){const allowed={dashboard:true,shops:true,finance:profile?.role
 function showLogin(){$('login').classList.remove('hidden');$('app').classList.add('hidden');$('nav').classList.add('hidden')}
 async function load(){const {data}=await db.auth.getUser();if(!data.user)return showLogin();const {data:p,error}=await db.from('vita_staff').select('*').eq('user_id',data.user.id).maybeSingle();if(error||!p||!p.active){await db.auth.signOut();showLogin();say('loginMsg','Профиль сотрудника не найден или неактивен.','err');return}profile=p;$('login').classList.add('hidden');$('app').classList.remove('hidden');$('nav').classList.remove('hidden');$('staffName').textContent=p.full_name||p.username;$('staffRole').textContent=roleName(p.role);$('avatar').textContent=(p.full_name||p.username||'V').split(/\s+/).slice(0,2).map(s=>s[0]).join('').toUpperCase();$('employeesNav').classList.toggle('hidden',p.role!=='admin');$('managementNav').classList.toggle('hidden',p.role!=='admin');$('reportsNav').classList.toggle('hidden',p.role!=='admin');$('quickReports').classList.toggle('hidden',p.role!=='admin');$('cashAccounting').classList.toggle('hidden',!['admin','accountant'].includes(p.role));$('cashNav').classList.toggle('hidden',!['admin','accountant'].includes(p.role));$('adminHandoverCard').classList.toggle('hidden',p.role!=='admin');$('accountantReceiveCard').classList.toggle('hidden',p.role!=='accountant');$('shopEditor').classList.toggle('hidden',p.role==='accountant');$('shopZoneEditor').classList.toggle('hidden',p.role!=='admin');$('visitsNav').classList.toggle('hidden',p.role!=='delivery');$('requestsNav').classList.toggle('hidden',!['sales','delivery','admin'].includes(p.role));document.querySelector('[data-page=finance]').classList.toggle('hidden',p.role==='sales');document.querySelectorAll('[data-go=finance]').forEach(b=>b.classList.toggle('hidden',p.role==='sales'));$('requestCreate').classList.toggle('hidden',p.role!=='sales');$('requestListTitle').textContent=p.role==='sales'?'Мои отправленные заявки':p.role==='delivery'?'Заявки на мой маршрут':'Все заявки';$('quickVisit').classList.toggle('hidden',p.role!=='delivery');document.querySelectorAll('[data-go=shops]').forEach(b=>b.textContent=p.role==='sales'?'🏪 Мои магазины':'🏪 Магазины');document.querySelectorAll('[data-go=finance]').forEach(b=>b.textContent=p.role==='accountant'?'＋ Закрыть долг / оплата':'＋ Принять оплату');$('headerTitle').textContent=p.role==='admin'?'Панель администратора':p.role==='delivery'?'Панель доставщика':p.role==='accountant'?'Панель бухгалтера':'Панель торгового представителя';$('headerSubtitle').textContent=p.role==='admin'?'Главная • Контроль и аналитика':p.role==='delivery'?'Главная • Мой маршрут':'Главная • Краткий обзор';$('operation').querySelector('option[value=payment]').hidden=false;$('operation').querySelector('option[value=sale]').hidden=p.role==='accountant';$('operation').querySelector('option[value=return]').hidden=p.role==='sales'||p.role==='accountant';$('operation').querySelector('option[value=adjustment]').hidden=p.role==='sales';if(p.role==='accountant')$('operation').querySelector('option[value=adjustment]').textContent='Закрыть / уменьшить долг';$('operation').value=p.role==='sales'?'sale':'payment';$('quickTitle').textContent=p.role==='admin'?'Быстрый доступ':p.role==='delivery'?'Действия на маршруте':'Быстрые действия';$('shopScope').textContent=p.role==='sales'?'Доступны магазины компании.':p.role==='delivery'?'Показаны только магазины, назначенные вам.':'Полный список магазинов компании.';if(p.role==='sales')$('planHero').classList.remove('green','navy');if(p.role==='delivery')$('planHero').classList.add('green');if(p.role==='admin')$('planHero').classList.add('navy');await refresh();go('dashboard')}
 async function refresh(){
-  const [shopResult,summaryResult,zoneResult]=await Promise.all([
+  $('zoneList').innerHTML='<div class="empty">Загружаю зоны…</div>';
+  try{
+    const zoneResult=await Promise.race([
+      db.from('vita_zones').select('id,zone_number,zone_name,active').eq('active',true).order('zone_number'),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('Превышено время ожидания ответа Supabase (10 секунд)')),10000))
+    ]);
+    if(zoneResult.error)throw zoneResult.error;
+    zones=zoneResult.data||[];
+    $('zoneList').innerHTML=zones.map(z=>'<div class="event"><div class="grow"><b>№ '+esc(z.zone_number)+' — '+esc(z.zone_name||('Зона '+z.zone_number))+'</b><div class="muted">Активна</div></div><span class="pill">Активна</span></div>').join('')||'<div class="empty">Активных зон пока нет</div>';
+  }catch(zoneError){
+    zones=[];
+    console.error('Ошибка загрузки зон:',zoneError);
+    $('zoneList').innerHTML='<div class="message err">Не удалось загрузить зоны: '+esc(zoneError.message||zoneError)+'</div>';
+  }
+  const [shopResult,summaryResult]=await Promise.all([
     db.from('vita_shops').select('*').order('created_at',{ascending:false}),
-    db.from('vita_shop_finance_summary').select('shop_id,total_ordered,total_paid,total_returns,current_debt'),
-    db.from('vita_zones').select('id,zone_number,zone_name,active').eq('active',true).order('zone_number')
+    db.from('vita_shop_finance_summary').select('shop_id,total_ordered,total_paid,total_returns,current_debt')
   ]);
-  zones=zoneResult.error?[]:(zoneResult.data||[]);
-  if(zoneResult.error){console.error(zoneResult.error);say('shopMsg','Не удалось загрузить зоны: '+zoneResult.error.message,'err')}
-  $('zoneList').innerHTML=zones.map(z=>'<div class="event"><div class="grow"><b>№ '+esc(z.zone_number)+' — '+esc(z.zone_name||('Зона '+z.zone_number))+'</b><div class="muted">Активна</div></div><span class="pill">Активна</span></div>').join('')||'<div class="empty">Активных зон пока нет</div>';
   if(shopResult.error){console.error(shopResult.error);say('shopMsg','Не удалось загрузить магазины: '+shopResult.error.message,'err');return}
   shops=shopResult.data||[];
   if(summaryResult.error){console.error(summaryResult.error);say('shopMsg','Финансовая сводка временно недоступна: '+summaryResult.error.message,'err')}
