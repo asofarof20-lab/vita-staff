@@ -259,36 +259,51 @@ async function loadSalesRequests(){
 window.openDeliveryForm=(id,total)=>{
   const host=$('delivery-form-'+id);if(!host)return;
   host.classList.remove('hidden');
-  host.innerHTML='<div class="delivery-panel"><h3>Результат доставки</h3><label>Результат</label><select id="delivery-result-'+id+'" onchange="toggleDeliveryFields(\''+id+'\','+total+')"><option value="paid_full">Оплачено полностью</option><option value="paid_partial">Частичная оплата</option><option value="debt">Оставлено в долг</option><option value="returned">Возврат товара</option><option value="no_contact">Не удалось связаться</option></select><div id="delivery-paid-wrap-'+id+'" class="hidden"><label>Получено наличными (с.)</label><input id="delivery-paid-'+id+'" type="number" min="0" step="0.01"></div><div id="delivery-return-wrap-'+id+'" class="hidden"><label>Стоимость возврата (с.)</label><input id="delivery-return-'+id+'" type="number" min="0" step="0.01" value="'+total+'"></div><label>Комментарий</label><textarea id="delivery-note-'+id+'" rows="2" placeholder="Необязательно"></textarea><div class="actions"><button class="smallbtn" onclick="saveDeliveryResult(\''+id+'\','+total+')">Сохранить результат</button><button class="secondary smallbtn" onclick="closeDeliveryForm(\''+id+'\')">Отмена</button></div><div id="delivery-msg-'+id+'" class="message"></div></div>';
-  toggleDeliveryFields(id,total);
+  host.innerHTML='<div class="delivery-panel"><h3>Результат доставки</h3><label>Статус доставки</label><select id="delivery-status-'+id+'" onchange="updateDeliveryTotals(\''+id+'\','+total+')"><option value="completed">Доставлено</option><option value="no_contact">Не удалось связаться</option></select><label>Получено наличными (с.)</label><input id="delivery-paid-'+id+'" type="number" min="0" step="0.01" value="0" oninput="updateDeliveryTotals(\''+id+'\','+total+')"><label>Стоимость возврата товара (с.)</label><input id="delivery-return-'+id+'" type="number" min="0" step="0.01" value="0" oninput="updateDeliveryTotals(\''+id+'\','+total+')"><label>Остаток долга (с.)</label><div id="delivery-debt-'+id+'" class="muted" style="font-size:18px;font-weight:700">'+money(total)+'</div><div id="delivery-total-msg-'+id+'" class="message"></div><label>Комментарий</label><textarea id="delivery-note-'+id+'" rows="2" placeholder="Необязательно"></textarea><div class="actions"><button class="smallbtn" onclick="saveDeliveryResult(\''+id+'\','+total+')">Сохранить результат</button><button class="secondary smallbtn" onclick="closeDeliveryForm(\''+id+'\')">Отмена</button></div><div id="delivery-msg-'+id+'" class="message"></div></div>';
+  updateDeliveryTotals(id,total);
 };
-window.toggleDeliveryFields=(id,total)=>{
-  const result=$('delivery-result-'+id)?.value;
-  const paidWrap=$('delivery-paid-wrap-'+id),returnWrap=$('delivery-return-wrap-'+id);
-  if(!paidWrap||!returnWrap)return;
-  paidWrap.classList.toggle('hidden',!['paid_partial','returned'].includes(result));
-  returnWrap.classList.toggle('hidden',result!=='returned');
-  const paid=$('delivery-paid-'+id),returned=$('delivery-return-'+id);
-  if(paid&&result==='returned')paid.value='0';
-  if(paid&&result==='paid_partial')paid.value='';
-  if(returned&&result==='returned'&&!returned.value)returned.value=total;
+window.updateDeliveryTotals=(id,total)=>{
+  const paid=Number($('delivery-paid-'+id)?.value||0);
+  const returned=Number($('delivery-return-'+id)?.value||0);
+  const status=$('delivery-status-'+id)?.value;
+  const debt=total-paid-returned;
+  const debtEl=$('delivery-debt-'+id),msg=$('delivery-total-msg-'+id);
+  if(debtEl)debtEl.textContent=money(debt);
+  if(status==='no_contact'){
+    if(debtEl)debtEl.textContent=money(total);
+    if(msg)say('delivery-total-msg-'+id,'При отсутствии контакта заявка останется без финансовых операций.','');
+    return;
+  }
+  if(msg){
+    if(paid<0||returned<0||!Number.isFinite(paid)||!Number.isFinite(returned)||paid+returned>total)
+      say('delivery-total-msg-'+id,'Ошибка: наличка и возврат не могут превышать сумму заявки.','err');
+    else
+      say('delivery-total-msg-'+id,'Проверка: наличка + возврат + долг = '+money(total)+'.','');
+  }
 };
 window.closeDeliveryForm=id=>{const host=$('delivery-form-'+id);if(host){host.classList.add('hidden');host.innerHTML=''}};
 window.saveDeliveryResult=async(id,total)=>{
-  const result=$('delivery-result-'+id)?.value;
-  const paidField=$('delivery-paid-'+id),returnField=$('delivery-return-'+id);
-  let paid_amount=['paid_partial','returned'].includes(result)?Number(paidField?.value||0):0;
-  const returned_amount=result==='returned'?Number(returnField?.value||0):0;
-  if(result==='paid_full')paid_amount=total;
-  if(result==='paid_partial'&&!(paid_amount>0&&paid_amount<total)){say('delivery-msg-'+id,'Укажите сумму больше нуля и меньше суммы заявки.','err');return}
-  if(result==='returned'&&(!(returned_amount>0&&returned_amount<=total)||!(paid_amount>=0&&paid_amount<=total-returned_amount))){say('delivery-msg-'+id,'Проверьте суммы возврата и оплаты.','err');return}
+  const status=$('delivery-status-'+id)?.value;
+  const paid_amount=Number($('delivery-paid-'+id)?.value||0);
+  const returned_amount=Number($('delivery-return-'+id)?.value||0);
+  if(!Number.isFinite(paid_amount)||!Number.isFinite(returned_amount)||paid_amount<0||returned_amount<0||paid_amount+returned_amount>total){
+    say('delivery-msg-'+id,'Проверьте суммы: они не должны быть отрицательными или превышать сумму заявки.','err');return;
+  }
+  if(status==='no_contact'&&(paid_amount!==0||returned_amount!==0)){
+    say('delivery-msg-'+id,'При отсутствии контакта наличка и возврат должны быть равны нулю.','err');return;
+  }
+  let result='paid_partial';
+  if(status==='no_contact')result='no_contact';
+  else if(paid_amount===total&&returned_amount===0)result='paid_full';
+  else if(paid_amount===0&&returned_amount===total)result='returned';
+  else if(paid_amount===0&&returned_amount===0)result='debt';
   const delivery_note=$('delivery-note-'+id)?.value.trim()||null;
   const saveButton=$('delivery-form-'+id)?.querySelector('button');
   if(saveButton)saveButton.disabled=true;
   const {data,error}=await db.rpc('vita_complete_delivery_request',{p_request_id:id,p_delivery_result:result,p_paid_amount:paid_amount,p_returned_amount:returned_amount,p_delivery_note:delivery_note});
   if(error){say('delivery-msg-'+id,'Не удалось сохранить: '+error.message,'err');if(saveButton)saveButton.disabled=false;return}
   const debt=Number(data?.remaining_debt||0);
-  alert('Результат сохранён.\nПолучено: '+money(paid_amount)+'\nВозврат: '+money(returned_amount)+'\nОстаток долга: '+money(debt));
+  alert('Результат сохранён.\\nПолучено наличными: '+money(paid_amount)+'\\nВозврат: '+money(returned_amount)+'\\nОстаток долга: '+money(debt));
   await loadSalesRequests();await loadMyPlan();
   if(!$('cash').classList.contains('hidden'))await loadCashManagement();
 };
