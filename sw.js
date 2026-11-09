@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vita-staff-shell-v3';
+const CACHE_NAME = 'vita-staff-shell-v4';
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', event => {
