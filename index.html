@@ -122,7 +122,7 @@ async function refresh(){
 }
 function renderShops(){
   const q=$('shopSearch').value.trim().toLowerCase();
-  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=profile.role!=='sales'||(!!profile.zone_id&&s.zone_id===profile.zone_id);const zn=zones.find(z=>z.id===s.zone_id)?.zone_name||'';const searchOk=!q||[s.name,s.phone,s.address,s.notes,zn,String(s.zone_id||'')].some(v=>String(v||'').toLowerCase().includes(q));const zoneOk=zoneFilter==='all'||!zoneFilter?true:s.zone_id===zoneFilter;const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&zoneOk&&activityOk;});
+  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=true;const zn=zones.find(z=>z.id===s.zone_id)?.zone_name||'';const searchOk=!q||[s.name,s.phone,s.address,s.notes,zn,String(s.zone_id||'')].some(v=>String(v||'').toLowerCase().includes(q));const zoneOk=zoneFilter==='all'||!zoneFilter?true:s.zone_id===zoneFilter;const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&zoneOk&&activityOk;});
   $('shopList').innerHTML=list.map(s=>{
     const canEdit=profile.role==='admin'||(profile.role==='sales'&&s.sales_rep_id===profile.user_id);
     const summary=shopSummaryMap.get(s.id)||{};
@@ -131,7 +131,7 @@ function renderShops(){
     const debtLabel=due>0?'Есть долг':'Долг закрыт';
     const zone=zones.find(z=>z.id===s.zone_id);
     return `<article class="shop-card" id="shop-card-${s.id}">
-      <div class="shop-card-head"><div class="shopico">🏪</div><div class="grow"><h3>${esc(s.name)}</h3><div class="muted">${esc(s.phone||'Телефон не указан')}${s.address?' · '+esc(s.address):''}</div>${zone?`<div class="muted">📍 ${esc(zone.zone_name)}</div>`:''}<span class="pill ${s.active===false?'red':due>0?'orange':''}">${s.active===false?'Неактивен':debtLabel}</span></div></div>
+      <div class="shop-card-head"><div class="shopico">🏪</div><div class="grow"><h3>${esc(s.name)}</h3><div class="muted">${esc(s.phone||'Телефон не указан')}${s.address?' · '+esc(s.address):''}</div>${s.notes?`<div class="muted">${esc(s.notes)}</div>`:''}${zone?`<div class="muted">📍 ${esc(zone.zone_name)}</div>`:''}<span class="pill ${s.active===false?'red':due>0?'orange':''}">${s.active===false?'Неактивен':debtLabel}</span></div></div>
       <div class="shop-card-metrics">
         <div class="shop-card-metric"><small>Заказано</small><b>${money(ordered)}</b></div>
         <div class="shop-card-metric paid"><small>Оплачено</small><b>${money(paid)}</b></div>
