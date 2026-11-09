@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "VITA Staff",
-  "short_name": "VITA Staff",
-  "description": "Рабочее приложение VITA Staff",
+  "name": "VITANET",
+  "short_name": "VITANET",
+  "description": "Рабочее приложение VITANET",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -10,6 +10,11 @@
   "background_color": "#f4f7fc",
   "theme_color": "#172c52",
   "icons": [
-    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }
