@@ -85,16 +85,17 @@ async function refresh(){
     db.from('vita_zones').select('id,zone_number,zone_name,active').eq('active',true).order('zone_number')
   ]);
   if(shopResult.error){console.error(shopResult.error);say('shopMsg','Не удалось загрузить магазины: '+shopResult.error.message,'err');return}
-  if(summaryResult.error){console.error(summaryResult.error);say('shopMsg','Не удалось загрузить сводку финансов: '+summaryResult.error.message,'err');return}
   shops=shopResult.data||[];
   zones=zoneResult.error?[]:(zoneResult.data||[]);
   if(zoneResult.error){console.error(zoneResult.error);say('shopMsg','Не удалось загрузить зоны: '+zoneResult.error.message,'err')}
+  $('zoneList').innerHTML=zones.map(z=>'<div class="event"><div class="grow"><b>№ '+esc(z.zone_number)+' — '+esc(z.zone_name||('Зона '+z.zone_number))+'</b><div class="muted">Активна</div></div><span class="pill">Активна</span></div>').join('')||'<div class="empty">Активных зон пока нет</div>';
+  if(summaryResult.error){console.error(summaryResult.error);say('shopMsg','Финансовая сводка временно недоступна: '+summaryResult.error.message,'err')}
   const zoneOptions=zones.map(z=>({value:z.id,label:z.zone_number+' — '+z.zone_name}));
   const zoneFilterValue=$('shopZoneFilter').value||zoneFilter;
   options('shopZoneFilter',zoneOptions,'Все зоны');$('shopZoneFilter').value=zoneFilterValue==='all'?'':zoneFilterValue;
   options('shopZone',zoneOptions,'Без зоны');
   finances=[];
-  const summaries=summaryResult.data||[];
+  const summaries=summaryResult.error?[]:(summaryResult.data||[]);
   shopSummaryMap=new Map(summaries.map(x=>[x.shop_id,x]));
   shopDebtMap=new Map(summaries.map(x=>[x.shop_id,Number(x.current_debt||0)]));
   shopHistoryState.clear();
