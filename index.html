@@ -502,10 +502,15 @@ async function generateAccountantReport(){
     if(error){$('accountantReport').textContent='Ошибка отчёта: '+error.message;button.disabled=false;return}
     rows=rows.concat(data||[]);if(!data||data.length<1000)break;offset+=1000;
   }
-  const total=rows.reduce((a,x)=>a+Number(x.amount||0),0),groups={};
-  rows.forEach(x=>{const key=x.from_staff_id||'unknown';if(!groups[key])groups[key]={amount:0,count:0};groups[key].amount+=Number(x.amount||0);groups[key].count++});
-  const details=Object.entries(groups).map(([id,x])=>{const p=staff.find(y=>y.user_id===id);return `<div class="event"><div class="grow"><b>${esc(p?.full_name||'Сотрудник')}</b><div class="muted">Принято операций: ${x.count}</div></div><b>${money(x.amount)}</b></div>`}).join('');
-  $('accountantReport').innerHTML=`<b>Итого принято: ${money(total)}</b><div class="muted">${rows.length} операций · ${esc(from)} — ${esc(to)}</div>${details||'<div class="empty">За этот период приёмов нет</div>'}`;
+  const received=rows.filter(x=>x.to_staff_id===profile.user_id).reduce((a,x)=>a+Number(x.amount||0),0);
+  const deposited=rows.filter(x=>x.movement_type==='office_receipt'&&x.from_staff_id===profile.user_id).reduce((a,x)=>a+Number(x.amount||0),0);
+  const details=rows.map(x=>{
+    const personId=x.movement_type==='office_receipt'?null:x.from_staff_id;
+    const p=staff.find(y=>y.user_id===personId);
+    const title=x.movement_type==='office_receipt'?'Сдано в офисную кассу':x.movement_type==='transfer'&&x.to_staff_id===profile.user_id?'Получено от сотрудника':x.movement_type==='transfer'?'Передано сотруднику':'Получено от магазина';
+    return `<div class="event"><div class="grow"><b>${esc(p?.full_name||title)}</b><div class="muted">${title} · ${new Date(x.created_at).toLocaleString('ru-RU')}${x.note?' · '+esc(x.note):''}</div></div><b>${money(x.amount)}</b></div>`;
+  }).join('');
+  $('accountantReport').innerHTML=`<b>Получено на баланс: ${money(received)}</b><div class="muted">Сдано в офис: ${money(deposited)} · ${rows.length} движений · ${esc(from)} — ${esc(to)}</div>${details||'<div class="empty">За этот период движений нет</div>'}`;
   button.disabled=false;
 }
 $('generateAccountantReport').onclick=generateAccountantReport;
