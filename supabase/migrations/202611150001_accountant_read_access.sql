@@ -9,6 +9,27 @@ CREATE POLICY vita_accountant_requests_read
   ON public.vita_sales_requests FOR SELECT TO authenticated
   USING (public.vita_is_accountant());
 
+-- Sales representatives may see only shops assigned to their own account.
+DROP POLICY IF EXISTS shops_read ON public.vita_shops;
+CREATE POLICY shops_read
+  ON public.vita_shops FOR SELECT TO authenticated
+  USING (
+    public.vita_is_admin()
+    OR (
+      public.vita_staff_role() = 'sales'
+      AND sales_rep_id = auth.uid()
+    )
+    OR (
+      public.vita_staff_role() = 'delivery'
+      AND EXISTS (
+        SELECT 1 FROM public.vita_shop_assignments a
+        WHERE a.shop_id = vita_shops.id
+          AND a.delivery_id = auth.uid()
+          AND a.active = true
+      )
+    )
+  );
+
 ALTER TABLE public.vita_cash_collections ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS vita_accountant_cash_collections_read ON public.vita_cash_collections;
 CREATE POLICY vita_accountant_cash_collections_read
@@ -448,6 +469,21 @@ AS
     AND f.due_date IS NOT NULL
     AND f.due_date <= (CURRENT_DATE - 7)
     AND (f.amount - COALESCE(a.allocated_amount, 0::numeric)) > 0::numeric;
+
+-- Restrict privileged cash functions to authenticated users.
+REVOKE ALL ON FUNCTION public.vita_sync_cash_custody_movement() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.vita_accountant_receive_cash(uuid,numeric,text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.vita_accountant_receive_cash(uuid,numeric,text) TO authenticated;
+REVOKE ALL ON FUNCTION public.vita_accountant_deposit_to_office(numeric,text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.vita_accountant_deposit_to_office(numeric,text) TO authenticated;
+REVOKE ALL ON FUNCTION public.vita_accountant_register_payment(uuid,numeric,text,date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.vita_accountant_register_payment(uuid,numeric,text,date) TO authenticated;
+REVOKE ALL ON FUNCTION public.vita_confirm_cash_collection(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.vita_confirm_cash_collection(uuid) TO authenticated;
+REVOKE ALL ON FUNCTION public.vita_record_cash_handover(uuid,numeric,text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.vita_record_cash_handover(uuid,numeric,text) TO authenticated;
+REVOKE ALL ON FUNCTION public.vita_record_shop_payment_by_staff(uuid,numeric,text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.vita_record_shop_payment_by_staff(uuid,numeric,text) TO authenticated;
 
 -- Deliberately unchanged:
 -- vita_is_accountant(), vita_is_admin(), vita_staff_role()
