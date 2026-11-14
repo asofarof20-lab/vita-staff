@@ -134,7 +134,7 @@ async function refresh(){
 }
 function renderShops(){
   const q=$('shopSearch').value.trim().toLowerCase();
-  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=true;const zn=zones.find(z=>z.id===s.zone_id)?.zone_name||'';const searchOk=!q||[s.name,s.phone,s.address,s.notes,zn,String(s.zone_id||'')].some(v=>String(v||'').toLowerCase().includes(q));const zoneOk=zoneFilter==='all'||!zoneFilter?true:s.zone_id===zoneFilter;const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&zoneOk&&activityOk;});
+  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=profile.role!=='sales'||s.sales_rep_id===profile.user_id;const zn=zones.find(z=>z.id===s.zone_id)?.zone_name||'';const searchOk=!q||[s.name,s.phone,s.address,s.notes,zn,String(s.zone_id||'')].some(v=>String(v||'').toLowerCase().includes(q));const zoneOk=zoneFilter==='all'||!zoneFilter?true:s.zone_id===zoneFilter;const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&zoneOk&&activityOk;});
   $('shopList').innerHTML=list.map(s=>{
     const canEdit=profile.role==='admin'||(profile.role==='sales'&&s.sales_rep_id===profile.user_id);
     const summary=shopSummaryMap.get(s.id)||{};
@@ -263,8 +263,8 @@ function renderAuditRows(rows,hostId,emptyText){
 }
 async function loadAccountantReports(){
   if(!['admin','accountant'].includes(profile?.role))return;
-  $('accountantAuditReports').classList.toggle('hidden',profile.role!=='accountant');
-  if(profile.role!=='accountant')return;
+  $('accountantAuditReports').classList.toggle('hidden',!['admin','accountant'].includes(profile.role));
+  if(!['admin','accountant'].includes(profile.role))return;
   const [allocations,financeAudit,operationsAudit]=await Promise.all([
     db.from('vita_finance_allocations').select('*').limit(100),
     db.from('vita_finance_audit').select('*').order('changed_at',{ascending:false}).limit(100),
