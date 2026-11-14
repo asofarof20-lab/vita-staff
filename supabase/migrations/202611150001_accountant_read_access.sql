@@ -297,7 +297,7 @@ BEGIN
   FROM public.vita_staff
   WHERE user_id = auth.uid() AND active = true;
 
-  IF auth.uid() IS NULL OR v_actor_role NOT IN ('admin','accountant','delivery') THEN
+  IF auth.uid() IS NULL OR COALESCE(v_actor_role,'') NOT IN ('admin','accountant','delivery') THEN
     RAISE EXCEPTION 'Нет прав принимать деньги';
   END IF;
   IF p_amount IS NULL OR p_amount <= 0 THEN
