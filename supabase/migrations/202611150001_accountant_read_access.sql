@@ -9,6 +9,12 @@ CREATE POLICY vita_accountant_requests_read
   ON public.vita_sales_requests FOR SELECT TO authenticated
   USING (public.vita_is_accountant());
 
+ALTER TABLE public.vita_cash_collections ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS vita_accountant_cash_collections_read ON public.vita_cash_collections;
+CREATE POLICY vita_accountant_cash_collections_read
+  ON public.vita_cash_collections FOR SELECT TO authenticated
+  USING (public.vita_is_accountant());
+
 ALTER TABLE public.vita_finance_allocations ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS vita_accountant_allocations_read ON public.vita_finance_allocations;
 CREATE POLICY vita_accountant_allocations_read
