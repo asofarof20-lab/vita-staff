@@ -395,7 +395,7 @@ REVOKE ALL ON FUNCTION public.vita_accountant_deposit_to_office(numeric,text) FR
 GRANT EXECUTE ON FUNCTION public.vita_accountant_deposit_to_office(numeric,text) TO authenticated;
 
 -- Existing date-filtered report RPC used by the accountant UI.
-DO $
+DO $$
 DECLARE
   v_count integer;
   v_function_oid oid;
@@ -420,7 +420,7 @@ BEGIN
     RAISE EXCEPTION 'Found % overloads of vita_shop_activity_summary(); inspect signatures before granting', v_count;
   END IF;
 END
-$;
+$$;
 
 -- Accountants can also read overdue-debt rows through this security-invoker view.
 CREATE OR REPLACE VIEW public.vita_overdue_debts
