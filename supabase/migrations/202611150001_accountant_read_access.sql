@@ -421,6 +421,33 @@ BEGIN
 END
 $$;
 
+-- Accountants can also read overdue-debt rows through this security-invoker view.
+CREATE OR REPLACE VIEW public.vita_overdue_debts
+WITH (security_invoker = true)
+AS
+ SELECT f.id AS finance_id,
+    f.shop_id,
+    s.name AS shop_name,
+    s.phone,
+    s.address,
+    s.sales_rep_id,
+    f.due_date,
+    f.amount - COALESCE(a.allocated_amount, 0::numeric) AS remaining_amount,
+    CURRENT_DATE - f.due_date AS overdue_days
+   FROM public.vita_shop_finances f
+     JOIN public.vita_shops s ON s.id = f.shop_id
+     LEFT JOIN (
+       SELECT vita_finance_allocations.debit_finance_id,
+              sum(vita_finance_allocations.amount) AS allocated_amount
+         FROM public.vita_finance_allocations
+        GROUP BY vita_finance_allocations.debit_finance_id
+     ) a ON a.debit_finance_id = f.id
+  WHERE (public.vita_is_admin() OR public.vita_is_accountant())
+    AND f.direction = 'debit'::text
+    AND f.due_date IS NOT NULL
+    AND f.due_date <= (CURRENT_DATE - 7)
+    AND (f.amount - COALESCE(a.allocated_amount, 0::numeric)) > 0::numeric;
+
 -- Deliberately unchanged:
 -- vita_is_accountant(), vita_is_admin(), vita_staff_role()
 -- vita_complete_delivery_request() remains delivery-only.
