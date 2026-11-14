@@ -395,13 +395,13 @@ REVOKE ALL ON FUNCTION public.vita_accountant_deposit_to_office(numeric,text) FR
 GRANT EXECUTE ON FUNCTION public.vita_accountant_deposit_to_office(numeric,text) TO authenticated;
 
 -- Existing date-filtered report RPC used by the accountant UI.
-DO $$
+DO $
 DECLARE
   v_count integer;
-  v_signature text;
+  v_function_oid oid;
 BEGIN
-  SELECT count(*), min(pg_get_function_identity_arguments(p.oid))
-    INTO v_count, v_signature
+  SELECT count(*), (array_agg(p.oid))[1]
+    INTO v_count, v_function_oid
   FROM pg_proc p
   JOIN pg_namespace n ON n.oid = p.pronamespace
   WHERE n.nspname = 'public'
@@ -409,9 +409,10 @@ BEGIN
     AND p.prokind = 'f';
 
   IF v_count = 1 THEN
+    -- regprocedure emits the exact callable signature using argument types only.
     EXECUTE format(
-      'GRANT EXECUTE ON FUNCTION public.vita_shop_activity_summary(%s) TO authenticated',
-      v_signature
+      'GRANT EXECUTE ON FUNCTION %s TO authenticated',
+      v_function_oid::regprocedure
     );
   ELSIF v_count = 0 THEN
     RAISE EXCEPTION 'public.vita_shop_activity_summary() was not found; no EXECUTE grant applied';
@@ -419,7 +420,7 @@ BEGIN
     RAISE EXCEPTION 'Found % overloads of vita_shop_activity_summary(); inspect signatures before granting', v_count;
   END IF;
 END
-$$;
+$;
 
 -- Accountants can also read overdue-debt rows through this security-invoker view.
 CREATE OR REPLACE VIEW public.vita_overdue_debts
