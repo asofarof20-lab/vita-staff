@@ -4,6 +4,9 @@ on:
     branches: [ main ]
     paths:
       - 'android/**'
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'sw.js'
       - '.github/workflows/build-android.yml'
   workflow_dispatch:
 permissions:
