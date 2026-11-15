@@ -175,7 +175,7 @@ function renderShopMap(){const host=$('shopMapInfo');if(!host)return;const q=$('
   if(error){panel.innerHTML='<div class="message err">Не удалось загрузить историю: '+esc(error.message)+'</div>';return}
   const rows=data||[];state.rows=reset?rows:state.rows.concat(rows);state.offset=from+rows.length;state.hasMore=rows.length===30;shopHistoryState.set(shopId,state);
   const labels={sale:'Заказ / продажа',payment:'Оплата',return:'Возврат',adjustment:'Корректировка долга'};
-  panel.innerHTML='<h3>История операций</h3>'+state.rows.map(x=>`<div class="event"><div class="shopico">${x.operation_type==='payment'?'💳':x.operation_type==='return'?'↩️':x.operation_type==='sale'?'🛍️':'🧾'}</div><div class="grow"><b>${esc(labels[x.operation_type]||x.operation_type)}</b><div class="muted">${new Date(x.created_at).toLocaleString('ru-RU')}${x.note?' · '+esc(x.note):''}</div></div><b>${money(x.amount)}</b></div>`).join('')+(state.hasMore?`<button class="secondary smallbtn shop-history-more" onclick="loadMoreShopHistory('${shopId}')">Загрузить ещё</button>`:'<div class="muted">Вся история загружена</div>');
+  panel.innerHTML='<h3>История операций</h3>'+state.rows.map(x=>{const actor=staff.find(p=>p.user_id===x.created_by);return `<div class="event"><div class="shopico">${x.operation_type==='payment'?'💳':x.operation_type==='return'?'↩️':x.operation_type==='sale'?'🛍️':'🧾'}</div><div class="grow"><b>${esc(labels[x.operation_type]||'Операция')}</b><div class="muted">${esc(actor?.full_name||'Сотрудник')} · ${new Date(x.created_at).toLocaleString('ru-RU')}${x.note?' · '+esc(x.note):''}</div></div><b>${money(x.amount)}</b></div>`}).join('')+(state.hasMore?`<button class="secondary smallbtn shop-history-more" onclick="loadMoreShopHistory('${shopId}')">Загрузить ещё</button>`:'<div class="muted">Вся история загружена</div>');
 }
 window.toggleShopHistory=async shopId=>{
   const panel=$('shopHistory-'+shopId);if(!panel)return;
@@ -251,16 +251,27 @@ $('saveFinance').onclick=async()=>{
 };
 function auditValue(v){
   if(v===null||v===undefined||v==='')return '—';
-  if(typeof v==='object')return JSON.stringify(v);
+  if(typeof v==='object')return 'Изменение записано';
   return String(v);
 }
 function renderAuditRows(rows,hostId,emptyText){
   const host=$(hostId);
   if(!rows?.length){host.innerHTML='<div class="empty">'+esc(emptyText)+'</div>';return}
+  const labels={amount:'Сумма',old_amount:'Было',new_amount:'Стало',old_value:'Было',new_value:'Стало',change_reason:'Причина',reason:'Причина',note:'Примечание',operation_type:'Операция',action:'Действие',movement_type:'Движение',direction:'Направление',status:'Статус',changed_at:'Дата',created_at:'Дата',recorded_at:'Дата',created_by:'Кто',changed_by:'Кто изменил',recorded_by:'Кто оформил',shop_id:'Магазин',staff_id:'Сотрудник',from_staff_id:'От кого',to_staff_id:'Кому',payment_method:'Способ оплаты',due_date:'Срок оплаты'};
+  const typeNames={sale:'Продажа',payment:'Оплата',return:'Возврат',adjustment:'Изменение долга',collection:'Получение денег',office_receipt:'Сдача в кассу',transfer:'Передача сотруднику'};
+  const personFor=(key,value)=>{if(key==='shop_id')return shops.find(x=>x.id===value)?.name;if(['created_by','changed_by','recorded_by','staff_id','from_staff_id','to_staff_id','user_id'].includes(key))return staff.find(x=>x.user_id===value)?.full_name;return null};
   host.innerHTML=rows.map(row=>{
-    const fields=Object.entries(row).filter(([k,v])=>!['id'].includes(k)&&v!==null&&v!==undefined&&v!=='');
-    return '<div class="event"><div class="grow">'+fields.map(([k,v])=>'<div class="muted"><b>'+esc(k)+'</b>: '+esc(auditValue(v))+'</div>').join('')+'</div></div>';
-  }).join('');
+    const fields=Object.entries(row).filter(([k,v])=>v!==null&&v!==undefined&&v!==''&&!['id','finance_id','operation_id','movement_id','audit_id'].includes(k)&&!k.endsWith('_uuid')&&!k.endsWith('_token'));
+    const lines=fields.map(([k,v])=>{
+      if(k==='shop_id'||k.endsWith('_id')||k==='user_id'){const name=personFor(k,v);if(!name)return '';v=name}
+      if(k==='operation_type'||k==='movement_type'||k==='action'||k==='status')v=typeNames[v]||v;
+      if(['amount','old_amount','new_amount','old_value','new_value'].includes(k)&&Number.isFinite(Number(v)))v=money(v);
+      if(['changed_at','created_at','recorded_at'].includes(k)){const d=new Date(v);if(!Number.isNaN(d.getTime()))v=d.toLocaleString('ru-RU')}
+      const label=labels[k]||(/reason|note/i.test(k)?'Примечание':null);if(!label)return '';
+      return '<div class="muted"><b>'+esc(label)+'</b>: '+esc(auditValue(v))+'</div>';
+    }).filter(Boolean).join('');
+    return lines?'<div class="event"><div class="grow">'+lines+'</div></div>':'';
+  }).filter(Boolean).join('')||'<div class="empty">Нет записей для отображения</div>';
 }
 async function loadAccountantReports(){
   if(!['admin','accountant'].includes(profile?.role))return;
@@ -516,7 +527,7 @@ async function loadCashManagement(){
     const from=staff.find(s=>s.user_id===x.from_staff_id),to=staff.find(s=>s.user_id===x.to_staff_id),by=staff.find(s=>s.user_id===x.recorded_by);
     const title=x.movement_type==='collection'?'Получено от магазина':x.movement_type==='office_receipt'?'Принято бухгалтером в кассу':'Передача между сотрудниками';
     const who=x.movement_type==='collection'?(to?.full_name||'Сотрудник'):x.movement_type==='office_receipt'?(from?.full_name||'Сотрудник'):(from?.full_name||'Сотрудник')+' → '+(to?.full_name||'Сотрудник');
-    return `<div class="event"><div class="shopico">${x.movement_type==='collection'?'💵':x.movement_type==='office_receipt'?'🏦':'↔️'}</div><div class="grow"><b>${esc(who)}</b><div class="muted">${title} · ${new Date(x.created_at).toLocaleString('ru-RU')} · Записал: ${esc(by?.full_name||'—')}${x.note?' · '+esc(x.note):''}</div></div><b>${money(x.amount)}</b></div>`;
+    return `<div class="event"><div class="shopico">${x.movement_type==='collection'?'💵':x.movement_type==='office_receipt'?'🏦':'↔️'}</div><div class="grow"><b>${esc(who==='Сотрудник'?(by?.full_name||'Движение денег'):who)}</b><div class="muted">${title} · ${new Date(x.created_at).toLocaleString('ru-RU')}${by?.full_name?' · Оформил: '+esc(by.full_name):''}${x.note?' · '+esc(x.note):''}</div></div><b>${money(x.amount)}</b></div>`;
   }).join('')||'<div class="empty">Движений пока нет</div>';
 }
 $('recordHandover').onclick=async()=>{
@@ -548,10 +559,10 @@ async function generateAccountantReport(){
   const deposited=rows.filter(x=>x.movement_type==='office_receipt'&&x.from_staff_id===profile.user_id).reduce((a,x)=>a+Number(x.amount||0),0);
   const transferred=rows.filter(x=>x.movement_type==='transfer'&&x.from_staff_id===profile.user_id).reduce((a,x)=>a+Number(x.amount||0),0);
   const details=rows.map(x=>{
-    const personId=x.movement_type==='office_receipt'?null:x.to_staff_id===profile.user_id?x.from_staff_id:x.to_staff_id;
-    const p=staff.find(y=>y.user_id===personId);
+    const personId=x.movement_type==='office_receipt'?x.from_staff_id:x.to_staff_id===profile.user_id?x.from_staff_id:x.to_staff_id;
+    const p=staff.find(y=>y.user_id===personId),by=staff.find(y=>y.user_id===x.recorded_by);
     const title=x.movement_type==='office_receipt'?'Сдано в офисную кассу':x.movement_type==='transfer'&&x.to_staff_id===profile.user_id?'Получено от сотрудника':x.movement_type==='transfer'?'Передано сотруднику':'Получено от магазина';
-    return `<div class="event"><div class="grow"><b>${esc(p?.full_name||title)}</b><div class="muted">${title} · ${new Date(x.created_at).toLocaleString('ru-RU')}${x.note?' · '+esc(x.note):''}</div></div><b>${money(x.amount)}</b></div>`;
+    return `<div class="event"><div class="grow"><b>${esc(p?.full_name||'Операция')}</b><div class="muted">${title} · ${new Date(x.created_at).toLocaleString('ru-RU')}${by?.full_name?' · Оформил: '+esc(by.full_name):''}${x.note?' · '+esc(x.note):''}</div></div><b>${money(x.amount)}</b></div>`;
   }).join('');
   $('accountantReport').innerHTML=`<b>Получено на баланс: ${money(received)}</b><div class="muted">Сдано в офис: ${money(deposited)} · Передано сотрудникам: ${money(transferred)} · ${rows.length} движений · ${esc(from)} — ${esc(to)}</div>${details||'<div class="empty">За этот период движений нет</div>'}`;
   button.disabled=false;
