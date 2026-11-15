@@ -1,5 +1,5 @@
-const CACHE_NAME = 'vita-staff-shell-v16';
-const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg?v=3'];
+const CACHE_NAME = 'vita-staff-shell-v17';
+const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg?v=4'];
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
