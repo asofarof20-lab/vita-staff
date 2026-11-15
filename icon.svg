@@ -1,7 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#172c52"/><stop offset="1" stop-color="#31528c"/></linearGradient></defs>
-<rect width="512" height="512" rx="112" fill="url(#g)"/>
-<path d="M104 142h304v58H294v171h-76V200h-114z" fill="#fff"/>
-<path d="M314 253h78v118h-78z" fill="#6fe0ba"/>
-<circle cx="353" cy="218" r="39" fill="#6fe0ba"/>
+<rect width="512" height="512" rx="112" fill="#f7f2eb"/>
+<g fill="#292a2c">
+<path d="M118 112h91c27 0 43 12 57 39l54 101-65 63-74-139c-9-17-20-27-63-64z"/>
+<path d="M394 112h-91c-27 0-43 12-57 39l-18 34 61 57 31-57c9-17 20-27 74-73z"/>
+<path d="M287 267l-90 133h81l63-95z"/>
+</g>
+<path d="M205 360c68-102 154-151 286-158-113-13-230 39-296 133-16 23-19 44-15 68 5-16 13-30 25-43z" fill="#a99a8c"/>
+<text x="256" y="462" text-anchor="middle" font-family="Arial,sans-serif" font-size="62" font-weight="400" letter-spacing="12" fill="#292a2c">VITANET</text>
 </svg>
