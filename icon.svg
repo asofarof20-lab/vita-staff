@@ -1,10 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-<rect width="512" height="512" rx="112" fill="#f7f2eb"/>
-<g fill="#292a2c">
-<path d="M118 112h91c27 0 43 12 57 39l54 101-65 63-74-139c-9-17-20-27-63-64z"/>
-<path d="M394 112h-91c-27 0-43 12-57 39l-18 34 61 57 31-57c9-17 20-27 74-73z"/>
-<path d="M287 267l-90 133h81l63-95z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" role="img" aria-label="VITANET">
+<rect width="640" height="512" rx="64" fill="#f7f2eb"/>
+<g fill="none" stroke="#292a2c" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+<path d="M112 190 L178 256 L244 190 M178 256 L178 322"/>
+<path d="M178 256 L272 256"/>
 </g>
-<path d="M205 360c68-102 154-151 286-158-113-13-230 39-296 133-16 23-19 44-15 68 5-16 13-30 25-43z" fill="#a99a8c"/>
-<text x="256" y="462" text-anchor="middle" font-family="Arial,sans-serif" font-size="62" font-weight="400" letter-spacing="12" fill="#292a2c">VITANET</text>
+<g fill="#a88a5c">
+<circle cx="112" cy="190" r="18"/><circle cx="244" cy="190" r="18"/><circle cx="178" cy="322" r="18"/><circle cx="272" cy="256" r="18"/>
+</g>
+<text x="322" y="278" font-family="Arial,sans-serif" font-size="76" font-weight="700" letter-spacing="4" fill="#292a2c">VITANET</text>
+<path d="M322 310 H560" stroke="#a88a5c" stroke-width="7" stroke-linecap="round"/>
 </svg>
