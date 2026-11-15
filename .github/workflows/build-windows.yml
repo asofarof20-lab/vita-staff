@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - 'desktop/**'
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'sw.js'
       - '.github/workflows/build-windows.yml'
 jobs:
   build:
