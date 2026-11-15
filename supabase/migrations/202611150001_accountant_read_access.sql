@@ -15,6 +15,7 @@ CREATE POLICY shops_read
   ON public.vita_shops FOR SELECT TO authenticated
   USING (
     public.vita_is_admin()
+    OR public.vita_is_accountant()
     OR (
       public.vita_staff_role() = 'sales'
       AND sales_rep_id = auth.uid()
