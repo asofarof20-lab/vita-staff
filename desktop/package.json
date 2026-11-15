@@ -1,38 +1,32 @@
 {
   "name": "vitanet-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "VITANET Business Management System",
   "main": "main.cjs",
   "author": "VITANET",
   "license": "UNLICENSED",
-  "scripts": {
-    "dist": "electron-builder --win nsis"
-  },
-  "devDependencies": {
-    "electron": "^34.0.0",
-    "electron-builder": "^25.1.8"
-  },
+  "scripts": { "dist": "electron-builder --win nsis --x64" },
+  "devDependencies": { "electron": "^34.0.0", "electron-builder": "^25.1.8" },
   "build": {
     "appId": "com.vitanet.staff",
     "productName": "VITANET",
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "main.cjs"
-    ],
+    "asar": true,
+    "directories": { "output": "dist" },
+    "files": ["main.cjs", "vitanet.ico"],
     "win": {
-      "target": [
-        "nsis"
-      ],
-      "artifactName": "VITANET-Setup-${version}.${ext}"
+      "icon": "vitanet.ico",
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "artifactName": "VITANET-Setup-1.0.1.exe"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "VITANET"
+      "shortcutName": "VITANET",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     }
   }
 }

@@ -4,6 +4,7 @@ on:
     branches: [ main ]
     paths:
       - 'android/**'
+      - 'assets/**'
       - 'index.html'
       - 'manifest.webmanifest'
       - 'sw.js'
@@ -16,6 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Generate icons from original logo
+        run: |
+          python -m pip install Pillow
+          python assets/prepare_icons.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -23,14 +28,12 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
-      - name: Install Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
       - name: Build debug APK
         run: gradle -p android :app:assembleDebug
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: VITANET-Android-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
