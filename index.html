@@ -88,7 +88,7 @@ function printCatalogInvoice(order,existingWindow=null){
 }
 async function loadCatalogOrders(){
  const host=$('catalogOrderList');host.innerHTML='<div class="empty">Загружаю заказы…</div>';
- const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,status,total,note,created_at').order('created_at',{ascending:false}).limit(100);
+ const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,status,total,note,created_at,source').eq('source','catalog').order('created_at',{ascending:false}).limit(100);
  if(error){host.innerHTML='<div class="message err">'+esc(error.message)+'</div>';return}
  const ids=(orders||[]).map(x=>x.id);
  let items=[],shopsForOrders=[];
