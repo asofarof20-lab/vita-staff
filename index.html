@@ -88,16 +88,18 @@ function printCatalogInvoice(order,existingWindow=null){
 }
 async function loadCatalogOrders(){
  const host=$('catalogOrderList');host.innerHTML='<div class="empty">Загружаю заказы…</div>';
- const [or,ir,sr]=await Promise.all([
-  db.from('vita_orders').select('id,order_number,shop_id,status,total,note,created_at,source').eq('source','catalog').order('created_at',{ascending:false}).limit(100),
-  db.from('vita_order_items').select('order_id,product_code,product_name,quantity,unit_price,line_total').limit(10000),
+ const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,status,total,note,created_at,source').eq('source','catalog').order('created_at',{ascending:false}).limit(100);
+ if(error){host.innerHTML='<div class="message err">'+esc(error.message)+'</div>';return}
+ const ids=(orders||[]).map(x=>x.id);
+ const [ir,sr]=await Promise.all([
+  ids.length?db.from('vita_order_items').select('order_id,product_code,product_name,quantity,unit_price,line_total').in('order_id',ids):Promise.resolve({data:[],error:null}),
   db.from('vita_shops').select('id,name,contact_person,phone,address,latitude,longitude,zone_id,active').order('name').limit(2000)
  ]);
- if(or.error||ir.error||sr.error){host.innerHTML='<div class="message err">'+esc((or.error||ir.error||sr.error).message)+'</div>';return}
- const orders=or.data||[],items=ir.data||[],allShops=sr.data||[];
+ if(ir.error||sr.error){host.innerHTML='<div class="message err">'+esc((ir.error||sr.error).message)+'</div>';return}
+ const items=ir.data||[],allShops=sr.data||[];
  window.vitaActiveShops=allShops.filter(x=>x.active!==false);
  const shopMap=new Map(allShops.map(x=>[x.id,x]));
- const enriched=orders.map(o=>({...o,vita_shops:shopMap.get(o.shop_id)||{name:'Магазин не назначен'},vita_order_items:items.filter(i=>i.order_id===o.id)}));
+ const enriched=(orders||[]).map(o=>({...o,vita_shops:shopMap.get(o.shop_id)||{name:'Магазин не назначен'},vita_order_items:items.filter(i=>i.order_id===o.id)}));
  window.vitaCatalogOrders=enriched;
  const shopOptions=(selected)=>'<option value="">Выберите магазин…</option>'+window.vitaActiveShops.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===selected?'selected':'')+'>'+esc(x.name)+' · '+esc(x.phone||x.address||'')+'</option>').join('');
  $('returnOrder').innerHTML='<option value="">Выберите заказ</option>'+enriched.filter(o=>o.status==='confirmed').map(o=>'<option value="'+o.id+'">№ '+o.order_number+' — '+esc(o.vita_shops.name)+'</option>').join('');
@@ -127,7 +129,7 @@ $('receiveReturn').onclick=async()=>{const order_id=$('returnOrder').value,code=
 let pendingCatalogOrderId=null;
 $('catalogOrderList').addEventListener('input',e=>{
  const search=e.target.closest('[data-shop-search]');if(!search)return;
- const id=search.dataset.shopSearch,select=$('[data-shop-choice="'+id+'"]'),q=search.value.trim().toLowerCase(),current=select.value;
+ const id=search.dataset.shopSearch,select=document.querySelector('[data-shop-choice="'+id+'"]'),q=search.value.trim().toLowerCase(),current=select.value;
  const found=(window.vitaActiveShops||[]).filter(x=>!q||[x.name,x.phone,x.address].some(v=>String(v||'').toLowerCase().includes(q)));
  select.innerHTML='<option value="">Выберите магазин…</option>'+found.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===current?'selected':'')+'>'+esc(x.name)+' · '+esc(x.phone||x.address||'')+'</option>').join('');
 });
@@ -135,7 +137,7 @@ $('catalogOrderList').addEventListener('click',async e=>{
  const assignBtn=e.target.closest('[data-assign-catalog]'),newBtn=e.target.closest('[data-new-shop-for-order]'),confirmBtn=e.target.closest('[data-confirm-catalog]'),printBtn=e.target.closest('[data-print-catalog]');
  if(printBtn){const o=(window.vitaCatalogOrders||[]).find(x=>x.id===printBtn.dataset.printCatalog);if(o)printCatalogInvoice(o);return}
  if(newBtn){pendingCatalogOrderId=newBtn.dataset.newShopForOrder;resetShopForm();go('shops');$('shopEditor').classList.remove('hidden');say('shopMsg','Новый магазин будет добавлен в общую базу и прикреплён к заказу №'+((window.vitaCatalogOrders||[]).find(x=>x.id===pendingCatalogOrderId)?.order_number||''),'ok');$('shopEditor').scrollIntoView({behavior:'smooth'});return}
- if(assignBtn){const id=assignBtn.dataset.assignCatalog,select=$('[data-shop-choice="'+id+'"]'),shopId=select?.value;if(!shopId){alert('Сначала найдите и выберите магазин.');return}assignBtn.disabled=true;const {error}=await db.rpc('vita_assign_catalog_order_shop',{p_order_id:id,p_shop_id:shopId});if(error){alert('Не удалось прикрепить магазин: '+error.message);assignBtn.disabled=false;return}await loadCatalogOrders();return}
+ if(assignBtn){const id=assignBtn.dataset.assignCatalog,select=document.querySelector('[data-shop-choice="'+id+'"]'),shopId=select?.value;if(!shopId){alert('Сначала найдите и выберите магазин.');return}assignBtn.disabled=true;const {error}=await db.rpc('vita_assign_catalog_order_shop',{p_order_id:id,p_shop_id:shopId});if(error){alert('Не удалось прикрепить магазин: '+error.message);assignBtn.disabled=false;return}await loadCatalogOrders();return}
  if(confirmBtn){const id=confirmBtn.dataset.confirmCatalog,o=(window.vitaCatalogOrders||[]).find(x=>x.id===id);if(!o||!o.shop_id){alert('Сначала прикрепите магазин к заказу.');return}if(!confirm('Подтвердить заказ №'+o.order_number+'? Товары будут списаны со склада.'))return;const printWindow=window.open('','_blank');confirmBtn.disabled=true;const {error}=await db.rpc('vita_confirm_catalog_order',{p_order_id:id});if(error){if(printWindow)printWindow.close();alert('Не удалось подтвердить заказ: '+error.message);confirmBtn.disabled=false;return}alert('Заказ подтверждён. Остатки списаны со склада. Откроется накладная для печати.');printCatalogInvoice(o,printWindow);await loadCatalogOrders();await loadStock();}
 });
 async function refresh(){
@@ -193,7 +195,7 @@ async function refresh(){
 }
 function renderShops(){
   const q=$('shopSearch').value.trim().toLowerCase();
-  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=profile.role!=='sales'||s.sales_rep_id===profile.user_id;const zn=zones.find(z=>z.id===s.zone_id)?.zone_name||'';const searchOk=!q||[s.name,s.phone,s.address,s.notes,zn,String(s.zone_id||'')].some(v=>String(v||'').toLowerCase().includes(q));const zoneOk=zoneFilter==='all'||!zoneFilter?true:s.zone_id===zoneFilter;const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&zoneOk&&activityOk;});
+  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=profile.role!=='sales'||s.sales_rep_id===profile.user_id;const zn=zones.find(z=>z.id===s.zone_id)?.zone_name||'';const searchOk=!q||[s.name,s.contact_person,s.phone,s.address,s.notes,zn,String(s.zone_id||'')].some(v=>String(v||'').toLowerCase().includes(q));const zoneOk=zoneFilter==='all'||!zoneFilter?true:s.zone_id===zoneFilter;const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&zoneOk&&activityOk;});
   $('shopList').innerHTML=list.map(s=>{
     const canEdit=profile.role==='admin'||(profile.role==='sales'&&s.sales_rep_id===profile.user_id);
     const summary=shopSummaryMap.get(s.id)||{};
@@ -202,7 +204,7 @@ function renderShops(){
     const debtLabel=due>0?'Есть долг':'Долг закрыт';
     const zone=zones.find(z=>z.id===s.zone_id);
     return `<article class="shop-card" id="shop-card-${s.id}">
-      <div class="shop-card-head"><div class="shopico">🏪</div><div class="grow"><h3>${esc(s.name)}</h3><div class="muted">${esc(s.phone||'Телефон не указан')}${s.address?' · '+esc(s.address):''}</div>${s.notes?`<div class="muted">${esc(s.notes)}</div>`:''}${zone?`<div class="muted">📍 ${esc(zone.zone_name)}</div>`:''}<span class="pill ${s.active===false?'red':due>0?'orange':''}">${s.active===false?'Неактивен':debtLabel}</span></div></div>
+      <div class="shop-card-head"><div class="shopico">🏪</div><div class="grow"><h3>${esc(s.name)}</h3><div class="muted">${esc(s.contact_person||'')}${s.contact_person?' · ':''}${esc(s.phone||'Телефон не указан')}${s.address?' · '+esc(s.address):''}</div>${s.notes?`<div class="muted">${esc(s.notes)}</div>`:''}${zone?`<div class="muted">📍 ${esc(zone.zone_name)}</div>`:''}<span class="pill ${s.active===false?'red':due>0?'orange':''}">${s.active===false?'Неактивен':debtLabel}</span></div></div>
       <div class="shop-card-metrics">
         <div class="shop-card-metric"><small>Заказано</small><b>${money(ordered)}</b></div>
         <div class="shop-card-metric paid"><small>Оплачено</small><b>${money(paid)}</b></div>
