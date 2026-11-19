@@ -371,9 +371,15 @@ async function loadMyCatalogDeliveries(){
 let staffTrackMap=null,staffTrackMarkers=[],staffTrackLines=[];
 async function loadStaffTracking(){
  const host=$('staffTrackList');if(!host||profile?.role!=='admin')return;
- host.textContent='Загружаю последние GPS-позиции…';
- const {data:rows,error}=await db.from('vita_staff_locations').select('staff_id,latitude,longitude,accuracy,recorded_at').gte('recorded_at',new Date(Date.now()-24*60*60*1000).toISOString()).order('recorded_at',{ascending:false}).limit(1000);
- if(error){host.textContent='Ошибка загрузки GPS: '+error.message;return}
+ host.textContent='Загружаю историю GPS за последние 24 часа…';
+ let rows=[],from=0;
+ while(from<10000){
+  const {data:batch,error}=await db.from('vita_staff_locations').select('staff_id,latitude,longitude,accuracy,recorded_at').gte('recorded_at',new Date(Date.now()-24*60*60*1000).toISOString()).order('recorded_at',{ascending:false}).range(from,from+999);
+  if(error){host.textContent='Ошибка загрузки GPS: '+error.message;return}
+  rows=rows.concat(batch||[]);
+  if(!batch||batch.length<1000)break;
+  from+=1000;
+ }
  const {data:drivers,error:staffError}=await db.from('vita_staff').select('user_id,full_name').eq('role','delivery').eq('active',true);
  if(staffError){host.textContent='Ошибка загрузки доставщиков: '+staffError.message;return}
  const latest=new Map();(rows||[]).forEach(r=>{if(!latest.has(r.staff_id))latest.set(r.staff_id,r)});
