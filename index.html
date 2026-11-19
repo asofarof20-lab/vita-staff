@@ -282,19 +282,6 @@ $('seedCatalogStock').onclick=async()=>{
  finally{button.disabled=false}
 };
 
-$('receiveReturn').onclick=async()=>{
- const order_id=$('returnOrder').value,reason=$('returnReason').value.trim()||null;
- if(!order_id||!returnDraft.length){say('returnMsg','Выберите заказ и добавьте хотя бы один товар','err');return}
- const b=$('receiveReturn');b.disabled=true;
- const {data,error}=await db.rpc('vita_receive_catalog_return_batch',{p_order_id:order_id,p_items:returnDraft,p_reason:reason});
- b.disabled=false;
- if(error){say('returnMsg','Ошибка: '+error.message,'err');return}
- const count=Number(data?.returned_lines||returnDraft.length);
- say('returnMsg','Принято позиций: '+count+'. Остатки склада увеличены.','ok');
- returnDraft=[];$('returnQty').value='';$('returnReason').value='';renderReturnDraft();
- await loadCatalogOrders();await loadStock();
-};
-
 $('catalogOrderList').addEventListener('input',e=>{
  const search=e.target.closest('[data-shop-search]');if(!search)return;
  const id=search.dataset.shopSearch,select=document.querySelector('[data-shop-choice="'+id+'"]'),q=search.value.trim().toLowerCase(),current=select.value;
