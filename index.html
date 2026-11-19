@@ -130,11 +130,15 @@ input,select,textarea{border-color:#dce5f1;border-radius:12px;background:#fbfdff
       });
       let result={};try{result=await response.json();}catch(_){}
       if(!response.ok||!result.session)throw new Error(result.error||'Не удалось войти. Проверьте логин и пароль.');
-      const auth=window.supabase.createClient(URL,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storage:window.localStorage}});
-      const {error}=await auth.auth.setSession({access_token:result.session.access_token,refresh_token:result.session.refresh_token});
+      const auth=window.vitaDb||window.supabase.createClient(URL,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storage:window.localStorage}});
+      const {data:sessionData,error}=await auth.auth.setSession({access_token:result.session.access_token,refresh_token:result.session.refresh_token});
       if(error)throw error;
-      show('Вход выполнен. Загружаем панель…',false);
-      location.reload();
+      if(!sessionData?.session)throw new Error('Сессия не сохранилась. Повторите вход.');
+      const {data:verified,error:verifyError}=await auth.auth.getUser();
+      if(verifyError||!verified?.user)throw new Error('Не удалось подтвердить вход. Попробуйте ещё раз.');
+      show('Вход выполнен. Открываем VITANET…',false);
+      await new Promise(resolve=>setTimeout(resolve,400));
+      location.href='./?login='+Date.now();
     }catch(error){
       show(error?.message||'Ошибка входа. Проверьте интернет и повторите попытку.',true);
       btn.disabled=false;
@@ -147,7 +151,7 @@ input,select,textarea{border-color:#dce5f1;border-radius:12px;background:#fbfdff
 })();
 </script>
 <script>
-const SUPABASE_URL='https://btxmlgdmdvmtijmgfhhg.supabase.co';const SUPABASE_KEY='sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm';const VITA_AUTH_OPTIONS={auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storage:window.localStorage}};const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,VITA_AUTH_OPTIONS);const CATALOG_URL='https://yedkbzasynqitvbavwwd.supabase.co';const CATALOG_KEY='sb_publishable_lV5KW7THtDzy-SN9GTrHLg_z7AFMqUP';const catalogDb=window.supabase.createClient(CATALOG_URL,CATALOG_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});let catalogProducts=[];
+const SUPABASE_URL='https://btxmlgdmdvmtijmgfhhg.supabase.co';const SUPABASE_KEY='sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm';const VITA_AUTH_OPTIONS={auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storage:window.localStorage}};const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,VITA_AUTH_OPTIONS);window.vitaDb=db;const CATALOG_URL='https://yedkbzasynqitvbavwwd.supabase.co';const CATALOG_KEY='sb_publishable_lV5KW7THtDzy-SN9GTrHLg_z7AFMqUP';const catalogDb=window.supabase.createClient(CATALOG_URL,CATALOG_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});let catalogProducts=[];
 let pendingCatalogOrderId=null;let profile=null,shops=[],zones=[],finances=[],staff=[],assignments=[],routeVisits=[],cashCustodyMovements=[],requestPage=0,requestPageSize=100,requestTotal=0,shopDebtMap=new Map(),shopSummaryMap=new Map(),shopHistoryState=new Map(),shopMap=null,shopMapMarkers=[],shopView="cards";let shopFilter='active',zoneFilter='all',shopActivityFilter='all',shopActivityMap=new Map(),shopActivityLoading=false;const $=id=>document.getElementById(id);const money=n=>(Number(n||0)).toLocaleString('ru-RU',{maximumFractionDigits:2})+' с.';const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const roleName=r=>({admin:'Администратор',sales:'Торговый представитель',delivery:'Доставщик',accountant:'Бухгалтер'})[r]||r||'—';
 function say(id,t,type=''){const el=$(id);el.textContent=t;el.className='message '+type}function options(id,arr,placeholder){$(id).innerHTML='<option value="">'+esc(placeholder)+'</option>'+arr.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}
 function go(page){const allowed={dashboard:true,shops:true,finance:profile?.role!=='sales',cash:['admin','accountant','delivery'].includes(profile?.role),salesRequests:['sales','delivery','admin','accountant'].includes(profile?.role),catalogOrders:['admin','accountant'].includes(profile?.role),visits:profile?.role==='delivery',employees:profile?.role==='admin',management:profile?.role==='admin',reports:['admin','accountant'].includes(profile?.role)};if(!allowed[page])return;['dashboard','shops','finance','cash','salesRequests','catalogOrders','visits','employees','management','reports'].forEach(p=>$(p).classList.toggle('hidden',p!==page));if(page==='shops')switchShopView('cards');document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));const titles={dashboard:['Главная','Главная • Краткий обзор'],shops:['Магазины','Магазины • Карточки и карта'],finance:['Операции','Оплаты магазинов • Закрытие долгов'],cash:['Касса','Касса сотрудников • Приём и история денег'],salesRequests:['Заявки','Заявки на доставку'],catalogOrders:['Заказы и склад','VITA Catalog • Заказы и склад'],visits:['Мой маршрут','Доставщик • Результат визита'],employees:['Сотрудники','Администратор • Команда'],management:['Управление','Администратор • Назначения и планы'],reports:['Отчёты','Контроль и аналитика']};$('headerTitle').textContent=titles[page][0];$('headerSubtitle').textContent=titles[page][1]}
