@@ -28,6 +28,7 @@ A row-level policy cannot grant a table privilege. The UI can therefore fail bef
 - Shop finance table: authenticated clients have SELECT/INSERT, but no direct UPDATE/DELETE; financial operations use guarded RPCs.
 - Shop and staff tables: no authenticated DELETE privilege; shop blacklist and employee deactivation are used instead of physical deletion.
 - Accountant RPCs exist for registering shop payments, receiving cash from staff, transferring/depositing cash and related finance operations.
+- Confirmed gap: the current accountant UI blocks debt adjustments, and the current `vita_record_shop_adjustment_by_staff` RPC permits only admin/delivery. The QA branch now updates the UI and proposes a guarded RPC version that also permits accountant, with a mandatory reason and active-shop check.
 - Catalog order shop assignment allows admin/accountant; catalog order confirmation is admin-only; delivery assignment is admin-only.
 - Return-to-warehouse RPC permits admin/accountant/delivery and checks order status, product code and cumulative return quantity.
 - Delivery request completion RPC checks that the caller is an active delivery employee and that the request belongs to them.
