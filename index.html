@@ -472,11 +472,11 @@ $('operation').onchange=()=> $('adjustmentDirectionWrap').classList.toggle('hidd
 $('saveFinance').onclick=async()=>{
   const type=$('operation').value,amount=Number($('amount').value),shop_id=$('financeShop').value;
   if(!shop_id||!(amount>0)){say('financeMsg','Выберите магазин и введите сумму больше нуля','err');return}
-  if(profile.role==='accountant'&&!['payment','return'].includes(type)){say('financeMsg','Бухгалтер может принимать оплату и оформлять финансовый возврат','err');return}
+  if(profile.role==='accountant'&&!['payment','return','adjustment'].includes(type)){say('financeMsg','Бухгалтер может принимать оплату и оформлять финансовый возврат','err');return}
   if((type==='return'||type==='adjustment')&&!['admin','delivery','accountant'].includes(profile.role)){say('financeMsg','Эта операция недоступна вашей должности','err');return}
   const direction=type==='adjustment'?$('adjustmentDirection').value:profile.role==='accountant'?'credit':type==='sale'?'debit':'credit';
   const note=$('financeNote').value.trim()||null;let error=null;
-  if(type==='adjustment'&&['admin','delivery'].includes(profile.role)){const result=await db.rpc('vita_record_shop_adjustment_by_staff',{p_shop_id:shop_id,p_amount:amount,p_direction:direction,p_note:note});error=result.error;
+  if(type==='adjustment'&&['admin','delivery','accountant'].includes(profile.role)){const result=await db.rpc('vita_record_shop_adjustment_by_staff',{p_shop_id:shop_id,p_amount:amount,p_direction:direction,p_note:note});error=result.error;
   }else if(type==='return'&&['admin','delivery','accountant'].includes(profile.role)){const result=await db.rpc('vita_record_shop_return_by_staff',{p_shop_id:shop_id,p_amount:amount,p_note:note});error=result.error;
   }else if(type==='payment'&&profile.role==='accountant'){
     const result=await db.rpc('vita_accountant_register_payment',{p_shop_id:shop_id,p_amount:amount,p_note:note,p_due_date:$('dueDate').value||null});error=result.error;
