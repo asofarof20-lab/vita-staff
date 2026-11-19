@@ -73,6 +73,43 @@ input:focus,select:focus,textarea:focus{border-color:#6574ec;box-shadow:0 0 0 3p
 </section></main>
 <nav id="nav" class="nav hidden"><button data-page="dashboard" class="active"><span class="symbol">⌂</span>Главная</button><button data-page="shops"><span class="symbol">▣</span>Магазины</button><button data-page="finance"><span class="symbol">▤</span>Операции</button><button data-page="cash" id="cashNav"><span class="symbol">🏦</span>Касса</button><button data-page="salesRequests" id="requestsNav"><span class="symbol">📦</span>Заявки</button><button data-page="catalogOrders" id="catalogOrdersNav"><span class="symbol">🧾</span>Заказы</button><button data-page="visits" id="visitsNav"><span class="symbol">⌖</span>Маршрут</button><button data-page="employees" id="employeesNav"><span class="symbol">♙</span>Сотрудники</button><button data-page="management" id="managementNav"><span class="symbol">⚙</span>Управление</button><button data-page="reports" id="reportsNav"><span class="symbol">▥</span>Отчёты</button></nav>
 <script>
+(function(){
+  const URL='https://btxmlgdmdvmtijmgfhhg.supabase.co';
+  const KEY='sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm';
+  const btn=document.getElementById('loginBtn');
+  const show=(message,bad)=>{const el=document.getElementById('loginMsg');if(el){el.textContent=message;el.className='message '+(bad?'err':'');}};
+  const run=async()=>{
+    const identifier=document.getElementById('loginIdentifier')?.value?.trim()||'';
+    const password=document.getElementById('password')?.value||'';
+    if(!identifier||!password){show('Введите логин или Email и пароль.',true);return;}
+    if(!window.supabase?.createClient){show('Не загрузился модуль входа. Обновите страницу.',true);return;}
+    btn.disabled=true;show('Проверяем данные…',false);
+    try{
+      const response=await fetch(URL+'/functions/v1/vita-staff-login',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':KEY,'Authorization':'Bearer '+KEY},
+        body:JSON.stringify({identifier,password})
+      });
+      let result={};try{result=await response.json();}catch(_){}
+      if(!response.ok||!result.session)throw new Error(result.error||'Не удалось войти. Проверьте логин и пароль.');
+      const auth=window.supabase.createClient(URL,KEY);
+      const {error}=await auth.auth.setSession({access_token:result.session.access_token,refresh_token:result.session.refresh_token});
+      if(error)throw error;
+      show('Вход выполнен. Загружаем панель…',false);
+      location.reload();
+    }catch(error){
+      show(error?.message||'Ошибка входа. Проверьте интернет и повторите попытку.',true);
+      btn.disabled=false;
+    }
+  };
+  if(btn){
+    btn.addEventListener('click',function(event){event.preventDefault();event.stopImmediatePropagation();run();},true);
+    document.getElementById('password')?.addEventListener('keydown',function(event){if(event.key==='Enter'){event.preventDefault();run();}});
+    document.getElementById('loginIdentifier')?.addEventListener('keydown',function(event){if(event.key==='Enter'){event.preventDefault();document.getElementById('password')?.focus();}});
+  }
+})();
+</script>
+<script>
 const SUPABASE_URL='https://btxmlgdmdvmtijmgfhhg.supabase.co';const SUPABASE_KEY='sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm';const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);const CATALOG_URL='https://yedkbzasynqitvbavwwd.supabase.co';const CATALOG_KEY='sb_publishable_lV5KW7THtDzy-SN9GTrHLg_z7AFMqUP';const catalogDb=window.supabase.createClient(CATALOG_URL,CATALOG_KEY);let catalogProducts=[];
 let pendingCatalogOrderId=null;let profile=null,shops=[],zones=[],finances=[],staff=[],assignments=[],routeVisits=[],cashCustodyMovements=[],requestPage=0,requestPageSize=100,requestTotal=0,shopDebtMap=new Map(),shopSummaryMap=new Map(),shopHistoryState=new Map(),shopMap=null,shopMapMarkers=[],shopView="cards";let shopFilter='active',zoneFilter='all',shopActivityFilter='all',shopActivityMap=new Map(),shopActivityLoading=false;const $=id=>document.getElementById(id);const money=n=>(Number(n||0)).toLocaleString('ru-RU',{maximumFractionDigits:2})+' с.';const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const roleName=r=>({admin:'Администратор',sales:'Торговый представитель',delivery:'Доставщик',accountant:'Бухгалтер'})[r]||r||'—';
 function say(id,t,type=''){const el=$(id);el.textContent=t;el.className='message '+type}function options(id,arr,placeholder){$(id).innerHTML='<option value="">'+esc(placeholder)+'</option>'+arr.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}
