@@ -160,7 +160,7 @@ function hideLiveOrderNotice(){const b=$('liveOrderNotice');if(b)b.classList.add
 function showLiveOrderNotice(message,page){
  const b=$('liveOrderNotice');if(!b)return;
  b.textContent=message;b.classList.remove('hidden');
- b.onclick=async()=>{hideLiveOrderNotice();go(page);if(page==='catalogOrders'){await loadCatalogProducts();await loadCatalogOrders();await loadStock()}if(page==='visits')await loadMyCatalogDeliveries()};
+ b.onclick=async()=>{hideLiveOrderNotice();go(page);if(page==='catalogOrders'){await loadCatalogProducts();await loadCatalogOrders();await loadStock()}};
 }
 
 function showLogin(){$('login').classList.remove('hidden');$('app').classList.add('hidden');$('nav').classList.add('hidden')}
