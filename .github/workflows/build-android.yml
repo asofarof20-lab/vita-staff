@@ -1,7 +1,7 @@
 name: Build VITANET Android APK
 on:
   push:
-    branches: [ main ]
+    branches: [ main, test/vitanet-integrated-qa-2026-11-19 ]
     paths:
       - 'android/**'
       - 'assets/**'
