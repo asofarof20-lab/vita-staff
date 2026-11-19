@@ -598,7 +598,27 @@ async function loadStaffGps(){
  }
  host.innerHTML=drivers.map(d=>{const p=d.point;return '<div class="event"><div class="grow"><b>'+esc(d.full_name||d.username||'Доставщик')+'</b><div class="muted">'+(p?'Последний сигнал: '+new Date(p.recorded_at).toLocaleString('ru-RU')+' · точность ±'+Math.round(p.accuracy||0)+' м':'GPS пока не передавался')+'</div></div>'+(p?'<a class="smallbtn secondary" target="_blank" rel="noopener" href="https://www.google.com/maps?q='+p.latitude+','+p.longitude+'">На карте</a>':'')+'</div>'}).join('')||'<div class="empty">Активных доставщиков нет.</div>';
 }
-window.recordVisit=async shopId=>{const result=prompt('Результат визита:\n1 — Оплатил полностью\n2 — Частично оплатил\n3 — Оставил в долг\n4 — Возврат товара\n5 — Нет контакта\n6 — Перенести');const map={'1':'paid_full','2':'paid_partial','3':'debt','4':'returned','5':'no_contact','6':'postponed'};if(!map[result])return;let amount=0;if(result==='2'){amount=Number(prompt('Сумма оплаты (с.):','0'));if(!(amount>0))return}const note=prompt('Комментарий (необязательно):','')||null;const visitDate=new Date().toISOString().slice(0,10);const {data:existing,error:findError}=await db.from('vita_shop_visits').select('id').eq('shop_id',shop_id).eq('delivery_id',profile.user_id).eq('visit_date',visitDate).maybeSingle();if(findError){alert('Не удалось проверить статус: '+findError.message);return}const payload={shop_id,delivery_id:profile.user_id,visit_date:visitDate,status:map[result],payment_amount:amount,note};const saved=existing?await db.from('vita_shop_visits').update(payload).eq('id',existing.id):await db.from('vita_shop_visits').insert(payload);if(saved.error)alert('Не удалось сохранить статус: '+saved.error.message);else await refresh()};
+function distanceBetweenMeters(lat1,lon1,lat2,lon2){const R=6371000,toRad=v=>v*Math.PI/180,dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1),a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
+function getFreshGps(){return new Promise((resolve,reject)=>{if(!navigator.geolocation)return reject(new Error('GPS не поддерживается'));navigator.geolocation.getCurrentPosition(p=>resolve({latitude:p.coords.latitude,longitude:p.coords.longitude,accuracy:p.coords.accuracy}),e=>reject(new Error(e.message||'GPS недоступен')),{enableHighAccuracy:true,timeout:18000,maximumAge:0})})}
+window.recordVisit=async shopId=>{
+ let active;try{active=await getActiveWorkday()}catch(e){alert('Не удалось проверить рабочий день: '+e.message);return}
+ if(!active){alert('Сначала нажмите «Начать рабочий день» в разделе «Мой маршрут».');return}
+ let point;try{point=await getFreshGps()}catch(e){alert('Для отметки визита нужен GPS. '+e.message+' Разрешите местоположение и попробуйте ещё раз.');return}
+ const shop=shops.find(x=>x.id===shopId);
+ if(shop?.latitude!=null&&shop?.longitude!=null){
+  const distance=distanceBetweenMeters(point.latitude,point.longitude,Number(shop.latitude),Number(shop.longitude));
+  if(distance>500&&!confirm('Вы находитесь примерно в '+Math.round(distance)+' м от координат магазина. Всё равно записать визит?'))return;
+ }
+ const result=prompt('Результат визита:\n1 — Оплатил полностью\n2 — Частично оплатил\n3 — Оставил в долг\n4 — Возврат товара\n5 — Нет контакта\n6 — Перенести');
+ const map={'1':'paid_full','2':'paid_partial','3':'debt','4':'returned','5':'no_contact','6':'postponed'};if(!map[result])return;
+ let amount=0;if(result==='2'){amount=Number(prompt('Сумма оплаты (с.):','0'));if(!(amount>0))return}
+ const note=prompt('Комментарий (необязательно):','')||null,d=new Date(),visitDate=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+ const {data:existing,error:findError}=await db.from('vita_shop_visits').select('id').eq('shop_id',shopId).eq('delivery_id',profile.user_id).eq('visit_date',visitDate).maybeSingle();
+ if(findError){alert('Не удалось проверить статус: '+findError.message);return}
+ const payload={shop_id:shopId,delivery_id:profile.user_id,visit_date:visitDate,status:map[result],payment_amount:amount,note,latitude:point.latitude,longitude:point.longitude,accuracy:point.accuracy};
+ const saved=existing?await db.from('vita_shop_visits').update(payload).eq('id',existing.id):await db.from('vita_shop_visits').insert(payload);
+ if(saved.error)alert('Не удалось сохранить визит: '+saved.error.message);else{gpsLastPoint=point;await refresh()}
+};
 async function loadManagement(){
   const {data:zoneRows,error:zoneError}=await db.from('vita_zones').select('id,zone_number,zone_name,active').eq('active',true).order('zone_number');
   if(zoneError){say('employeeMsg','Не удалось загрузить зоны: '+zoneError.message,'err');return}
