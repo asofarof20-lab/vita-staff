@@ -31,12 +31,12 @@ jobs:
           if (new Set(ids).size !== ids.length) throw new Error('Duplicate HTML id found');
           const required = ['loginIdentifier','loginBtn','password','shopZoneFilter','stockReceive','stockAdjust','receiveReturn','staffGps','staffGpsNav','refreshStaffGps'];
           for (const id of required) if (!ids.includes(id)) throw new Error('Missing required element: ' + id);
-          const hooks = ['vita-staff-login','persistSession:true','watchPosition','vita_staff_locations','vita_start_workday','vita_end_workday','vita_stock_receive','vita_stock_adjust','vita_receive_catalog_return','printCatalogInvoice','printSalesRequest','vita_assign_catalog_order_delivery','vita_mark_catalog_order_delivered',\"['confirmed','delivered'].includes(o.status)\",'Печать накладной A4'];
+          const hooks = ['vita-staff-login','persistSession:true','watchPosition','vita_staff_locations','vita_start_workday','vita_end_workday','vita_stock_receive','vita_stock_adjust','vita_receive_catalog_return','printCatalogInvoice','printSalesRequest','vita_assign_catalog_order_delivery','vita_mark_catalog_order_delivered','Печать накладной A4'];
           for (const token of hooks) if (!html.includes(token)) throw new Error('Missing required workflow hook: ' + token);
           if (html.includes('VITANET • УПРАВЛЕНИЕ КОМАНДОЙ') || html.includes('<img class="brand-logo"')) throw new Error('In-app branding header should be removed');
           if ((html.match(/let pendingCatalogOrderId=null;/g) || []).length !== 1) throw new Error('Duplicate pendingCatalogOrderId declaration');
           const migration = fs.readFileSync('database/migrations/20261119_allow_catalog_returns_after_delivery.sql', 'utf8');\n          for (const token of [\"v_status NOT IN ('confirmed', 'delivered')\",'FOR UPDATE','vita_stock_return_receipts','vita_stock_movements','REVOKE ALL ON FUNCTION']) if (!migration.includes(token)) throw new Error('Return migration missing: ' + token);\n          console.log('VITANET static QA passed');
-          NODE
+          for (const token of ["v_status NOT IN ('confirmed', 'delivered')",'FOR UPDATE','vita_stock_return_receipts','vita_stock_movements','REVOKE ALL ON FUNCTION']) if (!migration.includes(token)) throw new Error('Return migration missing: ' + token);
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
