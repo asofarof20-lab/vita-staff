@@ -363,20 +363,21 @@ $('catalogOrderList').addEventListener('click',async e=>{
 async function loadMyCatalogDeliveries(){
  const host=$('myCatalogDeliveries');if(!host||profile?.role!=='delivery')return;
  host.innerHTML='<div class="empty">Загружаю назначенные заказы…</div>';
- const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,status,total,created_at').eq('source','catalog').eq('delivery_id',profile.user_id).in('status',['new','confirmed']).order('created_at',{ascending:true}).limit(100);
+ const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,status,total,created_at').eq('source','catalog').eq('delivery_id',profile.user_id).in('status',['new','confirmed']).order('created_at',{ascending:false}).limit(100);
  if(error){host.innerHTML='<div class="message err">'+esc(error.message)+'</div>';return}
  const assignedCount=(orders||[]).length;
  const onVisitsPage=!$('visits').classList.contains('hidden');
  if(assignedCount>0&&!onVisitsPage)showLiveOrderNotice('Заявки на маршруте: '+assignedCount+' · открыть','visits');
  else if(assignedCount===0)hideLiveOrderNotice();
- const ids=(orders||[]).map(o=>o.id);
+ const routeOrders=(orders||[]).slice().reverse();
+ const ids=routeOrders.map(o=>o.id);
  const [ir,sr]=await Promise.all([
   ids.length?db.from('vita_order_items').select('order_id,product_code,product_name,quantity,unit_price,line_total').in('order_id',ids):Promise.resolve({data:[],error:null}),
-  db.from('vita_shops').select('id,name,phone,address,latitude,longitude').in('id',(orders||[]).map(o=>o.shop_id).filter(Boolean))
+  db.from('vita_shops').select('id,name,phone,address,latitude,longitude').in('id',routeOrders.map(o=>o.shop_id).filter(Boolean))
  ]);
  if(ir.error||sr.error){host.innerHTML='<div class="message err">'+esc((ir.error||sr.error).message)+'</div>';return}
  const shopsMap=new Map((sr.data||[]).map(s=>[s.id,s]));
- host.innerHTML=orders?.length?orders.map(o=>{
+ host.innerHTML=routeOrders.length?routeOrders.map(o=>{
   const shop=shopsMap.get(o.shop_id)||{};
   const destination=shop.latitude!=null&&shop.longitude!=null?Number(shop.latitude)+','+Number(shop.longitude):[shop.name,shop.address].filter(Boolean).join(' ');
   const navUrl='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(destination);
