@@ -42,3 +42,22 @@ jobs:
           deno-version: v2.x
       - name: Type-check public catalog order and stock edge function
         run: deno check supabase/functions/vita-catalog-orders/index.ts
+      - name: Smoke-test deployed login endpoint without a real account
+        run: |
+          status=$(curl -sS -o /tmp/vita-login-qa.json -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -H 'apikey: sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm' \
+            -H 'Authorization: Bearer sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm' \
+            --data '{"identifier":"qa_nonexistent_user_20261119","password":"not-a-real-password"}' \
+            https://btxmlgdmdvmtijmgfhhg.supabase.co/functions/v1/vita-staff-login)
+          test "$status" = "401" || { cat /tmp/vita-login-qa.json; echo "Expected 401, got $status"; exit 1; }
+      - name: Smoke-test public catalog intake honeypot without creating an order
+        run: |
+          status=$(curl -sS -o /tmp/vita-order-qa.json -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -H 'apikey: sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm' \
+            -H 'Authorization: Bearer sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm' \
+            --data '{"action":"order","website":"qa-honeypot","items":[]}' \
+            https://btxmlgdmdvmtijmgfhhg.supabase.co/functions/v1/vita-catalog-orders)
+          test "$status" = "200" || { cat /tmp/vita-order-qa.json; echo "Expected 200, got $status"; exit 1; }
+          grep -q '"ok":true' /tmp/vita-order-qa.json
