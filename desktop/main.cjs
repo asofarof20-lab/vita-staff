@@ -18,6 +18,23 @@ function createWindow() {
   });
   win.once('ready-to-show', () => win.show());
   win.webContents.setWindowOpenHandler(({ url }) => {
+    // VITANET opens an about:blank child window to build printable invoices.
+    // Keep that window inside Electron so window.print() reaches the OS printer dialog.
+    if (url === 'about:blank' || url.startsWith('about:blank#')) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 900,
+          height: 700,
+          autoHideMenuBar: true,
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true
+          }
+        }
+      };
+    }
     try { const target = new URL(url); if (target.protocol === 'https:') shell.openExternal(url); } catch (_) {}
     return { action: 'deny' };
   });
