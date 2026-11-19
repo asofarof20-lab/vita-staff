@@ -203,10 +203,10 @@ async function loadCatalogProducts(){
  }
  catalogProducts=all;
  const productOptions='<option value="">Выберите товар из каталога…</option>'+catalogProducts.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.id)+' — '+esc(p.name)+'</option>').join('');
- select.innerHTML=productOptions;$('adjustProduct').innerHTML=productOptions;
+ select.innerHTML=productOptions;
 }
 $('stockProduct').onchange=()=>{const p=catalogProducts.find(x=>String(x.id)===$('stockProduct').value);if(p){$('stockCode').value=p.id;$('stockName').value=p.name}};
-$('adjustProduct').onchange=()=>{const p=catalogProducts.find(x=>String(x.id)===$('adjustProduct').value);if(p){$('adjustQty').dataset.code=p.id}};
+$('stockMode').onchange=()=>{const set=$('stockMode').value==='adjust';$('stockQtyLabel').textContent=set?'Новое фактическое количество':'Количество прихода';$('stockQty').placeholder=set?'Например, 0':'Например, 25';$('stockQty').min=set?'0':'0.001'};
 let returnDraft=[];
 function returnableProducts(orderId){
  const order=(window.vitaCatalogOrders||[]).find(x=>x.id===orderId);
@@ -249,15 +249,15 @@ async function loadStock(){
  host.innerHTML=all.length?all.map(x=>'<div class="event"><div class="grow"><b>'+esc(x.product_name||'Товар')+'</b><div class="muted">Код: '+esc(x.product_code)+' · Обновлено: '+new Date(x.updated_at).toLocaleString('ru-RU')+'</div></div><div class="actions"><b>'+Number(x.quantity)+'</b><button type="button" class="secondary smallbtn" data-stock-edit="'+esc(x.product_code)+'" data-stock-qty="'+Number(x.quantity)+'">Изменить</button></div></div>').join(''):'<div class="empty">Остатков пока нет. Добавьте первый приход товара выше.</div>';
 }
 $('refreshCatalogOrders').onclick=loadCatalogOrders;
-$('stockReceive').onclick=async()=>{const code=$('stockCode').value.trim(),productName=$('stockName').value.trim(),qty=Number($('stockQty').value),note=$('stockNote').value.trim()||null;if(!code||!(qty>0)){say('stockMsg','Введите код товара и количество больше нуля','err');return}const b=$('stockReceive');b.disabled=true;const {error}=await db.rpc('vita_stock_receive',{p_product_code:code,p_product_name:productName||code,p_quantity:qty,p_note:note});b.disabled=false;if(error){say('stockMsg','Ошибка: '+error.message,'err');return}say('stockMsg','Товар принят на склад. Остаток обновлён в каталоге.','ok');$('stockQty').value='';$('stockNote').value='';await loadStock();}
+$('stockSave').onclick=async()=>{const code=$('stockCode').value.trim(),productName=$('stockName').value.trim()||catalogProducts.find(x=>String(x.id)===$('stockProduct').value)?.name||code,qty=Number($('stockQty').value),note=$('stockNote').value.trim(),mode=$('stockMode').value;if(!code||!Number.isFinite(qty)||qty<(mode==='adjust'?0:0.001)||(mode==='adjust'&&!note)){say('stockMsg',mode==='adjust'?'Укажите товар, новый остаток и причину':'Укажите товар и количество прихода больше нуля','err');return}const b=$('stockSave');b.disabled=true;const rpc=mode==='adjust'?'vita_stock_adjust':'vita_stock_receive';const args=mode==='adjust'?{p_product_code:code,p_product_name:productName,p_new_quantity:qty,p_reason:note}:{p_product_code:code,p_product_name:productName,p_quantity:qty,p_note:note||null};const {error}=await db.rpc(rpc,args);b.disabled=false;if(error){say('stockMsg','Ошибка: '+error.message,'err');return}say('stockMsg',mode==='adjust'?'Остаток обновлён. Изменение записано в журнал.':'Товар принят на склад. Остаток обновлён.','ok');$('stockQty').value='';$('stockNote').value='';await loadStock();}
 $('stockList').addEventListener('click',e=>{
  const b=e.target.closest('[data-stock-edit]');if(!b)return;
  const code=b.dataset.stockEdit,qty=b.dataset.stockQty;
- if(!Array.from($('adjustProduct').options).some(o=>o.value===code)){
-  const opt=document.createElement('option');opt.value=code;opt.textContent=code+' — товар склада';$('adjustProduct').append(opt);
+ if(!Array.from($('stockProduct').options).some(o=>o.value===code)){
+  const opt=document.createElement('option');opt.value=code;opt.textContent=code+' — товар склада';$('stockProduct').append(opt);
  }
- $('adjustProduct').value=code;$('adjustQty').value=qty;$('adjustReason').value='Ручная корректировка остатка';
- $('adjustQty').scrollIntoView({behavior:'smooth',block:'center'});
+ $('stockProduct').value=code;$('stockCode').value=code;$('stockName').value=catalogProducts.find(x=>String(x.id)===code)?.name||'';$('stockMode').value='adjust';$('stockMode').dispatchEvent(new Event('change'));$('stockQty').value=qty;$('stockNote').value='Ручная корректировка остатка';
+ $('stockQty').scrollIntoView({behavior:'smooth',block:'center'});
 });
 $('seedCatalogStock').onclick=async()=>{
  const button=$('seedCatalogStock');button.disabled=true;say('seedStockMsg','Загружаю полный ассортимент каталога…');
@@ -275,7 +275,7 @@ $('seedCatalogStock').onclick=async()=>{
  }catch(err){say('seedStockMsg','Ошибка: '+(err.message||'Не удалось заполнить склад'),'err')}
  finally{button.disabled=false}
 };
-$('stockAdjust').onclick=async()=>{const code=$('adjustProduct').value,productName=catalogProducts.find(x=>String(x.id)===code)?.name||code,qty=Number($('adjustQty').value),reason=$('adjustReason').value.trim();if(!code||!Number.isFinite(qty)||qty<0||!reason){say('adjustMsg','Выберите товар, укажите остаток и причину','err');return}const b=$('stockAdjust');b.disabled=true;const {error}=await db.rpc('vita_stock_adjust',{p_product_code:code,p_product_name:productName,p_new_quantity:qty,p_reason:reason});b.disabled=false;if(error){say('adjustMsg','Ошибка: '+error.message,'err');return}say('adjustMsg','Остаток скорректирован. Изменение записано в журнал.','ok');$('adjustQty').value='';$('adjustReason').value='';await loadStock();};
+
 $('receiveReturn').onclick=async()=>{
  const order_id=$('returnOrder').value,reason=$('returnReason').value.trim()||null;
  if(!order_id||!returnDraft.length){say('returnMsg','Выберите заказ и добавьте хотя бы один товар','err');return}
