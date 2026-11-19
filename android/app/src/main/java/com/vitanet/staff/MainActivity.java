@@ -53,7 +53,8 @@ public class MainActivity extends Activity {
         web.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                if (!origin.startsWith("https://" + APP_HOST + "/")) {
+                Uri originUri = Uri.parse(origin);
+                if (!"https".equals(originUri.getScheme()) || !APP_HOST.equals(originUri.getHost())) {
                     callback.invoke(origin, false, false);
                     return;
                 }
