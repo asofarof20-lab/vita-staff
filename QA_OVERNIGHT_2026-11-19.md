@@ -54,5 +54,13 @@ The existing live UI offered a one-click initializer that added 1,000 units of e
 7. Regression: no physical shop/staff deletion; archive blocked by cash balance, open requests, unconfirmed collections, outstanding shop debt or active route assignments.
 8. Mobile UI: login, navigation, forms, table/card readability, map/GPS permissions, printing and offline/error states.
 
+## Changes saved on the isolated GitHub QA branch
+- Updated the accountant finance form so the accountant can submit shop debt adjustments.
+- Added a guarded SQL RPC definition allowing admin, delivery and accountant to adjust debt, requiring a reason and an active shop.
+- Added SELECT grants needed by the staff UI to read order items and warehouse/return tables; existing RLS policies continue to control rows.
+- Removed the UI action that created 1,000 fictional units for every catalog product and proposed revoking the legacy bulk-seed RPC.
+- Verified the changed files by fetching them back from GitHub. Branch comparison reports 5 commits ahead of `main`, 0 behind; `main`'s `index.html` SHA remains unchanged.
+- No CI checks are configured/reported for the latest commit. The SQL migration has not been applied and no end-to-end runtime test has been run because an isolated Supabase branch is pending cost approval.
+
 ## Release gate
 Do not merge this branch, deploy a new frontend, apply migrations to production, deploy Edge Functions, or switch staff until isolated database tests pass and the user explicitly approves release.
