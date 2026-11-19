@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Message;
 import android.print.PrintAttributes;
 import android.print.PrintJob;
 import android.print.PrintManager;
@@ -46,11 +47,34 @@ public class MainActivity extends Activity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setGeolocationEnabled(true);
+        settings.setSupportMultipleWindows(true);
+        settings.setJavaScriptCanOpenWindowsAutomatically(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
 
         web.addJavascriptInterface(new NativePrintBridge(), "VitaNativePrint");
         web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+                final WebView popup = new WebView(MainActivity.this);
+                popup.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView popupView, WebResourceRequest request) {
+                        Uri uri = request.getUrl();
+                        if (APP_HOST.equals(uri.getHost())) web.loadUrl(uri.toString());
+                        else openExternal(uri);
+                        if (popupView.getParent() == root) root.removeView(popupView);
+                        popupView.destroy();
+                        return true;
+                    }
+                });
+                root.addView(popup, new FrameLayout.LayoutParams(1, 1));
+                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                transport.setWebView(popup);
+                resultMsg.sendToTarget();
+                return true;
+            }
+
             @Override
             public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
                 Uri originUri = Uri.parse(origin);
