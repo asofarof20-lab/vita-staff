@@ -169,18 +169,20 @@ async function loadCatalogOrders(){
  const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,status,total,note,created_at,source').eq('source','catalog').order('created_at',{ascending:false}).limit(100);
  if(error){host.innerHTML='<div class="message err">'+esc(error.message)+'</div>';return}
  const ids=(orders||[]).map(x=>x.id);
- const [ir,sr]=await Promise.all([
+ const [ir,sr,rr]=await Promise.all([
   ids.length?db.from('vita_order_items').select('order_id,product_code,product_name,quantity,unit_price,line_total').in('order_id',ids):Promise.resolve({data:[],error:null}),
-  db.from('vita_shops').select('id,name,contact_person,phone,address,latitude,longitude,zone_id,active').order('name').limit(2000)
+  db.from('vita_shops').select('id,name,contact_person,phone,address,latitude,longitude,zone_id,active').order('name').limit(2000),
+  ids.length?db.from('vita_stock_return_receipts').select('order_id,product_code,quantity').in('order_id',ids):Promise.resolve({data:[],error:null})
  ]);
- if(ir.error||sr.error){host.innerHTML='<div class="message err">'+esc((ir.error||sr.error).message)+'</div>';return}
+ if(ir.error||sr.error||rr.error){host.innerHTML='<div class="message err">'+esc((ir.error||sr.error||rr.error).message)+'</div>';return}
  const items=ir.data||[],allShops=sr.data||[];
+ window.vitaCatalogReturnReceipts=rr.data||[];
  window.vitaActiveShops=allShops.filter(x=>x.active!==false);
  const shopMap=new Map(allShops.map(x=>[x.id,x]));
  const enriched=(orders||[]).map(o=>({...o,vita_shops:shopMap.get(o.shop_id)||{name:'Магазин не назначен'},vita_order_items:items.filter(i=>i.order_id===o.id)}));
  window.vitaCatalogOrders=enriched;
  const shopOptions=(selected)=>'<option value="">Выберите магазин…</option>'+window.vitaActiveShops.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===selected?'selected':'')+'>'+esc(x.name)+' · '+esc(x.phone||x.address||'')+'</option>').join('');
- $('returnOrder').innerHTML='<option value="">Выберите заказ</option>'+enriched.filter(o=>o.status==='confirmed').map(o=>'<option value="'+o.id+'">№ '+o.order_number+' — '+esc(o.vita_shops.name)+'</option>').join('');
+ $('returnOrder').innerHTML='<option value="">Выберите заказ</option>'+enriched.filter(o=>['confirmed','delivered'].includes(o.status)).map(o=>'<option value="'+o.id+'">№ '+o.order_number+' — '+esc(o.vita_shops.name)+' · '+(o.status==='delivered'?'доставлен':'подтверждён')+'</option>').join('');
  host.innerHTML=enriched.length?enriched.map(o=>{
   const assign=o.status==='new'?'<div class="card" style="padding:12px;margin:10px 0"><b>Привязка магазина</b><label>Поиск по названию, телефону или адресу</label><input type="search" data-shop-search="'+o.id+'" placeholder="Начните вводить название…"><label>Существующий магазин</label><select data-shop-choice="'+o.id+'">'+shopOptions(o.shop_id)+'</select><div class="actions"><button class="secondary smallbtn" data-assign-catalog="'+o.id+'">Прикрепить магазин</button><button class="smallbtn" data-new-shop-for-order="'+o.id+'">＋ Добавить магазин</button></div></div>':'';
   const confirm=profile.role==='admin'&&o.status==='new'&&o.shop_id?'<button class="smallbtn" data-confirm-catalog="'+o.id+'">Подтвердить и напечатать</button>':'';
@@ -205,8 +207,35 @@ async function loadCatalogProducts(){
 }
 $('stockProduct').onchange=()=>{const p=catalogProducts.find(x=>String(x.id)===$('stockProduct').value);if(p){$('stockCode').value=p.id;$('stockName').value=p.name}};
 $('adjustProduct').onchange=()=>{const p=catalogProducts.find(x=>String(x.id)===$('adjustProduct').value);if(p){$('adjustQty').dataset.code=p.id}};
-$('returnOrder').onchange=()=>{const o=(window.vitaCatalogOrders||[]).find(x=>x.id===$('returnOrder').value);const items=o?.vita_order_items||[];$('returnProduct').innerHTML='<option value="">Выберите товар из заказа…</option>'+items.map(i=>'<option value="'+esc(i.product_code||'')+'" data-name="'+esc(i.product_name)+'">'+esc(i.product_name)+' — '+esc(i.product_code||'')+'</option>').join('')};
-$('returnProduct').onchange=()=>{const o=$('returnProduct').selectedOptions[0];$('returnCode').value=o?.value||'';$('returnName').value=o?.dataset.name||''};
+let returnDraft=[];
+function returnableProducts(orderId){
+ const order=(window.vitaCatalogOrders||[]).find(x=>x.id===orderId);
+ const ordered=new Map(),returned=new Map();
+ (order?.vita_order_items||[]).forEach(i=>{const code=String(i.product_code||'').trim();if(!code)return;const old=ordered.get(code)||{product_code:code,product_name:i.product_name,quantity:0};old.quantity+=Number(i.quantity)||0;ordered.set(code,old)});
+ (window.vitaCatalogReturnReceipts||[]).filter(r=>r.order_id===orderId).forEach(r=>{const code=String(r.product_code||'');returned.set(code,(returned.get(code)||0)+(Number(r.quantity)||0))});
+ return [...ordered.values()].map(i=>({...i,remaining:Math.max(0,i.quantity-(returned.get(i.product_code)||0))})).filter(i=>i.remaining>0);
+}
+function renderReturnDraft(){
+ const host=$('returnDraftList');
+ host.innerHTML=returnDraft.length?returnDraft.map((i,n)=>'<div class="event"><div class="grow"><b>'+esc(i.product_name)+'</b><div class="muted">Код: '+esc(i.product_code)+'</div></div><b>'+i.quantity+' шт.</b><button type="button" class="danger smallbtn" data-remove-return="'+n+'">Убрать</button></div>').join(''):'<div class="empty">Пока товары не добавлены</div>';
+}
+$('returnOrder').onchange=()=>{
+ returnDraft=[];renderReturnDraft();
+ const items=returnableProducts($('returnOrder').value);
+ $('returnProduct').disabled=!items.length;
+ $('returnProduct').innerHTML='<option value="">'+(items.length?'Выберите товар…':'Нет товаров для возврата')+'</option>'+items.map(i=>'<option value="'+esc(i.product_code)+'" data-name="'+esc(i.product_name)+'" data-remaining="'+i.remaining+'">'+esc(i.product_name)+' — осталось вернуть '+i.remaining+' шт.</option>').join('');
+ $('returnQty').value='';
+};
+$('addReturnItem').onclick=()=>{
+ const option=$('returnProduct').selectedOptions[0],code=$('returnProduct').value,qty=Number($('returnQty').value),remaining=Number(option?.dataset.remaining||0);
+ if(!code||!(qty>0)){say('returnMsg','Выберите товар и укажите количество','err');return}
+ const already=returnDraft.filter(x=>x.product_code===code).reduce((a,x)=>a+x.quantity,0);
+ if(already+qty>remaining){say('returnMsg','Можно вернуть не больше '+remaining+' шт. по этому товару','err');return}
+ const existing=returnDraft.find(x=>x.product_code===code);
+ if(existing)existing.quantity+=qty;else returnDraft.push({product_code:code,product_name:option.dataset.name||code,quantity:qty});
+ $('returnQty').value='';say('returnMsg','','');renderReturnDraft();
+};
+$('returnDraftList').addEventListener('click',e=>{const b=e.target.closest('[data-remove-return]');if(!b)return;returnDraft.splice(Number(b.dataset.removeReturn),1);renderReturnDraft()});
 async function loadStock(){
  const host=$('stockList');host.innerHTML='<div class="empty">Загружаю остатки…</div>';
  let all=[],from=0;
@@ -247,7 +276,18 @@ $('seedCatalogStock').onclick=async()=>{
  finally{button.disabled=false}
 };
 $('stockAdjust').onclick=async()=>{const code=$('adjustProduct').value,productName=catalogProducts.find(x=>String(x.id)===code)?.name||code,qty=Number($('adjustQty').value),reason=$('adjustReason').value.trim();if(!code||!Number.isFinite(qty)||qty<0||!reason){say('adjustMsg','Выберите товар, укажите остаток и причину','err');return}const b=$('stockAdjust');b.disabled=true;const {error}=await db.rpc('vita_stock_adjust',{p_product_code:code,p_product_name:productName,p_new_quantity:qty,p_reason:reason});b.disabled=false;if(error){say('adjustMsg','Ошибка: '+error.message,'err');return}say('adjustMsg','Остаток скорректирован. Изменение записано в журнал.','ok');$('adjustQty').value='';$('adjustReason').value='';await loadStock();};
-$('receiveReturn').onclick=async()=>{const order_id=$('returnOrder').value,code=$('returnCode').value.trim(),name=$('returnName').value.trim(),qty=Number($('returnQty').value),reason=$('returnReason').value.trim()||null;if(!order_id||!code||!(qty>0)){say('returnMsg','Выберите заказ, укажите код товара и количество','err');return}const b=$('receiveReturn');b.disabled=true;const {error}=await db.rpc('vita_receive_catalog_return',{p_order_id:order_id,p_product_code:code,p_product_name:name||code,p_quantity:qty,p_reason:reason});b.disabled=false;if(error){say('returnMsg','Ошибка: '+error.message,'err');return}say('returnMsg','Возврат принят физически. Остаток склада увеличен.','ok');$('returnQty').value='';$('returnReason').value='';await loadStock();}
+$('receiveReturn').onclick=async()=>{
+ const order_id=$('returnOrder').value,reason=$('returnReason').value.trim()||null;
+ if(!order_id||!returnDraft.length){say('returnMsg','Выберите заказ и добавьте хотя бы один товар','err');return}
+ const b=$('receiveReturn');b.disabled=true;
+ const {data,error}=await db.rpc('vita_receive_catalog_return_batch',{p_order_id:order_id,p_items:returnDraft,p_reason:reason});
+ b.disabled=false;
+ if(error){say('returnMsg','Ошибка: '+error.message,'err');return}
+ const count=Number(data?.returned_lines||returnDraft.length);
+ say('returnMsg','Принято позиций: '+count+'. Остатки склада увеличены.','ok');
+ returnDraft=[];$('returnQty').value='';$('returnReason').value='';renderReturnDraft();
+ await loadCatalogOrders();await loadStock();
+};
 
 $('catalogOrderList').addEventListener('input',e=>{
  const search=e.target.closest('[data-shop-search]');if(!search)return;
