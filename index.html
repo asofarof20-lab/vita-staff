@@ -138,7 +138,7 @@ input,select,textarea{border-color:#dce5f1;border-radius:12px;background:#fbfdff
       if(verifyError||!verified?.user)throw new Error('Не удалось подтвердить вход. Попробуйте ещё раз.');
       show('Вход выполнен. Открываем VITANET…',false);
       await new Promise(resolve=>setTimeout(resolve,400));
-      location.href='./?login='+Date.now();
+      const incomingOrder=new URLSearchParams(location.search).get('catalog_order');location.href='./?login='+Date.now()+(incomingOrder?'&catalog_order='+encodeURIComponent(incomingOrder):'');
     }catch(error){
       show(error?.message||'Ошибка входа. Проверьте интернет и повторите попытку.',true);
       btn.disabled=false;
