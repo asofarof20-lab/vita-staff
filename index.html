@@ -341,7 +341,7 @@ async function loadMyCatalogDeliveries(){
   return '<div class="event"><div class="grow"><b>Заказ № '+o.order_number+' · '+esc(shop.name||'Магазин')+'</b> '+statusTag+'<div class="muted">'+esc(shop.phone||'')+' '+esc(shop.address||'')+' · '+money(o.total)+'</div>'+lines+'<div class="actions"><a class="secondary smallbtn" href="'+navUrl+'" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;text-align:center">⌖ Открыть навигатор</a>'+deliveryAction+'</div></div></div>';
  }).join(''):'<div class="empty">Новых заказов из каталога пока нет.</div>';
 }
-let staffTrackMap=null,staffTrackMarkers=[];
+let staffTrackMap=null,staffTrackMarkers=[],staffTrackLines=[];
 async function loadStaffTracking(){
  const host=$('staffTrackList');if(!host||profile?.role!=='admin')return;
  host.textContent='Загружаю последние GPS-позиции…';
@@ -355,8 +355,13 @@ async function loadStaffTracking(){
  const mapEl=$('staffTrackMap');if(!mapEl||!window.L)return;
  if(!staffTrackMap){staffTrackMap=L.map(mapEl).setView([38.56,68.78],11);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(staffTrackMap)}
  staffTrackMarkers.forEach(m=>staffTrackMap.removeLayer(m));staffTrackMarkers=[];
- positions.forEach(x=>{const p=x.position;staffTrackMarkers.push(L.marker([p.latitude,p.longitude]).addTo(staffTrackMap).bindPopup('<b>'+esc(x.full_name)+'</b><br>'+new Date(p.recorded_at).toLocaleString('ru-RU')))});
- if(positions.length){const bounds=L.latLngBounds(positions.map(x=>[x.position.latitude,x.position.longitude]));staffTrackMap.fitBounds(bounds,{padding:[25,25],maxZoom:14})}
+ staffTrackLines.forEach(line=>staffTrackMap.removeLayer(line));staffTrackLines=[];
+ positions.forEach(x=>{
+  const path=(rows||[]).filter(r=>r.staff_id===x.user_id).sort((a,b)=>new Date(a.recorded_at)-new Date(b.recorded_at)).map(r=>[r.latitude,r.longitude]);
+  if(path.length>1)staffTrackLines.push(L.polyline(path,{weight:4,opacity:.75}).addTo(staffTrackMap));
+  const p=x.position;staffTrackMarkers.push(L.marker([p.latitude,p.longitude]).addTo(staffTrackMap).bindPopup('<b>'+esc(x.full_name)+'</b><br>'+new Date(p.recorded_at).toLocaleString('ru-RU')));
+ });
+ if(positions.length){const points=positions.flatMap(x=>(rows||[]).filter(r=>r.staff_id===x.user_id).map(r=>[r.latitude,r.longitude]));const bounds=L.latLngBounds(points.length?points:positions.map(x=>[x.position.latitude,x.position.longitude]));staffTrackMap.fitBounds(bounds,{padding:[25,25],maxZoom:14})}
  setTimeout(()=>staffTrackMap.invalidateSize(),150);
 }
 let locationWatchId=null,lastLocationWrite=0;
