@@ -35,6 +35,15 @@ A row-level policy cannot grant a table privilege. The UI can therefore fail bef
 
 These are static policy/function observations, not successful end-to-end role tests.
 
+## Additional permission and audit findings
+- The accountant's cash page already has dedicated controls for receiving cash from employees and depositing to the office, and the database RPCs authorize accountant for those actions.
+- Found a frontend-only gap: the cash transfer-to-another-employee panel was hidden from accountant even though the database RPC authorizes accountant. The QA branch now displays that panel for accountant as well.
+- Employee archive is guarded in the database: non-zero cash balance, pending sales requests, unconfirmed cash collections, active assigned shops with outstanding debt, and active delivery routes block deactivation; the last active administrator cannot be deactivated.
+- Physical DELETE/TRUNCATE privileges are absent for authenticated and anonymous roles on shops, staff, shop finance and audit/cash ledger tables. Shop blacklisting is admin-only at the database trigger.
+- Finance and operations audit triggers are present. Direct UPDATE/DELETE privileges are absent on shop finance and cash ledger tables.
+- Sales request RLS limits sales reps to their own requests and delivery workers to requests assigned to them; admin/accountant have all-request read policies. Catalog order item read policy includes accountant and the order-access helper.
+- Cash movement compatibility trigger mirrors legacy staff cash movement inserts into the newer custody ledger. This is why both ledger tables appear in the schema; do not remove either without a migration that preserves the sync behavior.
+
 ## Security and performance items requiring QA
 - Supabase security advisor reports 34 SECURITY DEFINER functions executable by authenticated users. Each must be reviewed for an internal role/ownership check; the advisor finding alone does not prove exploitability.
 - Leaked-password protection is disabled in Auth settings.
