@@ -322,7 +322,7 @@ $('catalogOrderList').addEventListener('click',async e=>{
 async function loadMyCatalogDeliveries(){
  const host=$('myCatalogDeliveries');if(!host||profile?.role!=='delivery')return;
  host.innerHTML='<div class="empty">Загружаю назначенные заказы…</div>';
- const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,status,total,created_at').eq('source','catalog').eq('delivery_id',profile.user_id).eq('status','confirmed').order('created_at',{ascending:true}).limit(100);
+ const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,status,total,created_at').eq('source','catalog').eq('delivery_id',profile.user_id).in('status',['new','confirmed']).order('created_at',{ascending:true}).limit(100);
  if(error){host.innerHTML='<div class="message err">'+esc(error.message)+'</div>';return}
  const ids=(orders||[]).map(o=>o.id);
  const [ir,sr]=await Promise.all([
@@ -336,7 +336,9 @@ async function loadMyCatalogDeliveries(){
   const destination=shop.latitude!=null&&shop.longitude!=null?Number(shop.latitude)+','+Number(shop.longitude):[shop.name,shop.address].filter(Boolean).join(' ');
   const navUrl='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(destination);
   const lines=(ir.data||[]).filter(i=>i.order_id===o.id).map(i=>'<div class="muted">'+esc(i.product_name)+' ('+esc(i.product_code||'')+') × '+Number(i.quantity)+'</div>').join('');
-  return '<div class="event"><div class="grow"><b>Заказ № '+o.order_number+' · '+esc(shop.name||'Магазин')+'</b><div class="muted">'+esc(shop.phone||'')+' '+esc(shop.address||'')+' · '+money(o.total)+'</div>'+lines+'<div class="actions"><a class="secondary smallbtn" href="'+navUrl+'" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;text-align:center">⌖ Открыть навигатор</a><button class="success smallbtn" data-delivered-catalog="'+o.id+'">Отметить доставленным</button></div></div></div>';
+  const statusTag=o.status==='new'?'<span class="pill orange">Ожидает подтверждения бухгалтера</span>':'<span class="pill">Подтверждён к доставке</span>';
+  const deliveryAction=o.status==='confirmed'?'<button class="success smallbtn" data-delivered-catalog="'+o.id+'">Отметить доставленным</button>':'<span class="muted">Можно готовить маршрут; доставка откроется после подтверждения бухгалтера.</span>';
+  return '<div class="event"><div class="grow"><b>Заказ № '+o.order_number+' · '+esc(shop.name||'Магазин')+'</b> '+statusTag+'<div class="muted">'+esc(shop.phone||'')+' '+esc(shop.address||'')+' · '+money(o.total)+'</div>'+lines+'<div class="actions"><a class="secondary smallbtn" href="'+navUrl+'" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;text-align:center">⌖ Открыть навигатор</a>'+deliveryAction+'</div></div></div>';
  }).join(''):'<div class="empty">Новых заказов из каталога пока нет.</div>';
 }
 let staffTrackMap=null,staffTrackMarkers=[];
