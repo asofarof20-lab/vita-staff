@@ -62,3 +62,6 @@ $function$;
 
 REVOKE ALL ON FUNCTION public.vita_record_shop_adjustment_by_staff(uuid,numeric,text,text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.vita_record_shop_adjustment_by_staff(uuid,numeric,text,text) TO authenticated;
+
+-- Prevent accidental use of the legacy bulk initializer that creates fictional 1000-unit balances.
+REVOKE ALL ON FUNCTION public.vita_stock_seed_catalog(jsonb,numeric) FROM PUBLIC, anon, authenticated;
