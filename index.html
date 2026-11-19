@@ -345,7 +345,7 @@ let staffTrackMap=null,staffTrackMarkers=[],staffTrackLines=[];
 async function loadStaffTracking(){
  const host=$('staffTrackList');if(!host||profile?.role!=='admin')return;
  host.textContent='Загружаю последние GPS-позиции…';
- const {data:rows,error}=await db.from('vita_staff_locations').select('staff_id,latitude,longitude,accuracy,recorded_at').order('recorded_at',{ascending:false}).limit(1000);
+ const {data:rows,error}=await db.from('vita_staff_locations').select('staff_id,latitude,longitude,accuracy,recorded_at').gte('recorded_at',new Date(Date.now()-24*60*60*1000).toISOString()).order('recorded_at',{ascending:false}).limit(1000);
  if(error){host.textContent='Ошибка загрузки GPS: '+error.message;return}
  const {data:drivers,error:staffError}=await db.from('vita_staff').select('user_id,full_name').eq('role','delivery').eq('active',true);
  if(staffError){host.textContent='Ошибка загрузки доставщиков: '+staffError.message;return}
@@ -377,7 +377,7 @@ async function startDeliveryTracking(){
   const {error:saveError}=await db.from('vita_staff_locations').insert({staff_id:profile.user_id,latitude:p.coords.latitude,longitude:p.coords.longitude,accuracy:p.coords.accuracy});
   if(saveError)say('trackingMsg','GPS включён, но не удалось сохранить точку: '+saveError.message,'err');
   else say('trackingMsg','Навигация и GPS включены. Последняя точка: '+new Date().toLocaleTimeString('ru-RU'),'ok');
- },e=>{locationWatchId=null;say('trackingMsg',e.code===1?'Разрешите доступ к геолокации в настройках браузера.':'Не удалось получить GPS: '+e.message,'err')},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
+ },e=>{locationWatchId=null;db.rpc('vita_end_workday');say('trackingMsg',e.code===1?'Разрешите доступ к геолокации в настройках браузера. Рабочий день остановлен.':'Не удалось получить GPS: '+e.message+'. Рабочий день остановлен.','err')},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
 }
 async function stopDeliveryTracking(){
  if(locationWatchId!==null){navigator.geolocation.clearWatch(locationWatchId);locationWatchId=null}
