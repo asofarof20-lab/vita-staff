@@ -385,6 +385,18 @@ async function generateRequestReport(){
   if(!total){result.textContent='За выбранный период заявок нет.';return}
   result.innerHTML='<div class="grid" style="margin-top:10px"><div class="metric"><small>Заявок</small><b>'+Number(total.request_count||0)+'</b></div><div class="metric green"><small>Выполнено</small><b>'+Number(total.completed_count||0)+'</b></div><div class="metric orange"><small>Ожидают</small><b>'+Number(total.pending_count||0)+'</b></div><div class="metric red"><small>Отменено</small><b>'+Number(total.cancelled_count||0)+'</b></div></div><div class="event"><div class="grow"><b>Общая сумма заявок</b><div class="muted">Оплачено: '+money(total.paid_amount)+' · Возвраты: '+money(total.returned_amount)+' · Остаток долга: '+money(total.debt_amount)+' · Ожидают доставки: '+money(total.pending_amount)+'</div></div><b>'+money(total.total_amount)+'</b></div><h3 style="margin-top:14px">По доставщикам</h3>'+drivers.map(x=>'<div class="event"><div class="grow"><b>'+esc(x.delivery_name)+'</b><div class="muted">'+Number(x.request_count||0)+' заявок · Выполнено: '+Number(x.completed_count||0)+' · Ожидает: '+Number(x.pending_count||0)+' · Отменено: '+Number(x.cancelled_count||0)+'<br>Оплачено: '+money(x.paid_amount)+' · Возвраты: '+money(x.returned_amount)+' · Долг: '+money(x.debt_amount)+'</div></div><b>'+money(x.total_amount)+'</b></div>').join('')||'<div class="empty">Нет заявок по доставщикам</div>';
 }
+window.printSalesRequest=(id)=>{
+ const x=(window.vitaSalesRequests||[]).find(r=>r.id===id);if(!x)return;
+ const shop=(shops||[]).find(z=>z.id===x.shop_id)||{};
+ const driver=(window.vitaRequestDrivers||new Map()).get(x.delivery_id)||'Не назначен';
+ const payment=x.payment_type==='cash'?'Наличные':'Долг';
+ const state=x.status==='completed'?'Выполнена':x.status==='cancelled'?'Отменена':'Ожидает доставки';
+ const result=({paid_full:'Оплачено полностью',paid_partial:'Частичная оплата',debt:'Оставлено в долг',returned:'Возврат',no_contact:'Не удалось связаться'})[x.delivery_result]||x.delivery_result||'—';
+ const w=window.open('','_blank');if(!w){alert('Разрешите всплывающие окна для печати.');return}
+ w.document.write('<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Заявка VITANET</title><style>@page{size:A4;margin:14mm}body{font:14px Arial,sans-serif;color:#222}h1{text-align:center;margin:0 0 24px}p{margin:8px 0}.total{text-align:right;font-size:20px;font-weight:bold;margin-top:28px}.sign{display:flex;justify-content:space-between;margin-top:70px}</style></head><body><h1>ЗАЯВКА VITANET</h1><p><b>Магазин:</b> '+esc(shop.name||'Магазин')+'</p><p><b>Контакт:</b> '+esc(shop.contact_person||'—')+'</p><p><b>Телефон:</b> '+esc(shop.phone||'—')+'</p><p><b>Адрес:</b> '+esc(shop.address||'—')+'</p><p><b>Дата доставки:</b> '+esc(x.delivery_date||'—')+'</p><p><b>Доставщик:</b> '+esc(driver)+'</p><p><b>Оплата:</b> '+payment+'</p><p><b>Статус:</b> '+state+'</p><p><b>Результат:</b> '+esc(result)+'</p><div class="total">Сумма: '+money(x.amount)+'</div><div class="sign"><span>Подпись: __________________</span><span>Получил: __________________</span></div><script>window.onload=()=>window.print()<\\/script></body></html>');
+ w.document.close();
+};
+$('requestList').addEventListener('click',e=>{const b=e.target.closest('[data-print-request]');if(b)window.printSalesRequest(b.dataset.printRequest)});
 async function loadSalesRequests(){
   if(['admin','accountant'].includes(profile.role)){
     const now=new Date(),first=new Date(now.getFullYear(),now.getMonth(),1),fmt=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -409,6 +421,8 @@ async function loadSalesRequests(){
   const {data,error,count}=await query.range(requestPage*requestPageSize,(requestPage+1)*requestPageSize-1);
   if(error){list.innerHTML='<div class="message err">Ошибка загрузки заявок: '+esc(error.message)+'</div>';return}
   const rows=data||[];
+  window.vitaSalesRequests=rows;
+  window.vitaRequestDrivers=driverNames;
   list.innerHTML=rows.map(x=>{
     const shop=shops.find(s=>s.id===x.shop_id);
     const pay=x.payment_type==='cash'?'Наличные':'Долг';
@@ -417,7 +431,7 @@ async function loadSalesRequests(){
     const result=x.delivery_result?'<div class="muted">Результат: '+esc(({paid_full:'Оплачено полностью',paid_partial:'Частичная оплата',debt:'Оставлено в долг',returned:'Возврат',no_contact:'Не удалось связаться'})[x.delivery_result]||x.delivery_result)+' · Получено: '+money(x.paid_amount)+' · Возврат: '+money(x.returned_amount)+(x.delivery_note?' · '+esc(x.delivery_note):'')+'</div>':'';
     const action=profile.role==='delivery'&&x.status==='pending'?'<button class="smallbtn" onclick="openDeliveryForm(\''+x.id+'\','+Number(x.amount||0)+')">Отметить результат</button>':'';
     const printAction=['admin','accountant'].includes(profile.role)?'<button class="secondary smallbtn" data-print-request="'+x.id+'">Печать A4</button>':'';
-    return '<div class="event"><div class="shopico">📦</div><div class="grow"><b>'+esc(shop?.name||'Магазин')+' · '+money(x.amount)+'</b><div class="muted">'+esc(pay)+' · Доставка: '+esc(x.delivery_date)+' · '+esc(state)+(driver?' · Доставщик: '+esc(driver):'')+'</div>'+result+action+'<div id="delivery-form-'+x.id+'" class="delivery-form hidden"></div></div></div>';
+    return '<div class="event"><div class="shopico">📦</div><div class="grow"><b>'+esc(shop?.name||'Магазин')+' · '+money(x.amount)+'</b><div class="muted">'+esc(pay)+' · Доставка: '+esc(x.delivery_date)+' · '+esc(state)+(driver?' · Доставщик: '+esc(driver):'')+'</div>'+result+action+printAction+'<div id="delivery-form-'+x.id+'" class="delivery-form hidden"></div></div></div>';
   }).join('')||'<div class="empty">Заявок пока нет</div>';
   requestTotal=count||0;
   const pages=Math.max(1,Math.ceil(requestTotal/requestPageSize));
