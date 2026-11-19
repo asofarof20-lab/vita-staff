@@ -41,6 +41,9 @@ These are static policy/function observations, not successful end-to-end role te
 - Performance advisor reports multiple permissive RLS policies on several public tables and three duplicate indexes.
 - Additional no-primary-key / no-policy findings occur in the legacy backup schema; verify schema exposure and grants before any cleanup. No backup data was modified.
 
+## Confirmed warehouse safety issue
+The existing live UI offered a one-click initializer that added 1,000 units of every catalog product as explicitly fictional starting stock. That is unsafe for real inventory. The QA branch removes that button and its handler, and the QA migration revokes direct execution of the legacy bulk initializer. Initial quantities must be entered from physically verified counts using normal receipt/adjustment workflows with reasons.
+
 ## Required isolated test cases
 1. Admin: login, employee creation/edit/archive guards, shop blacklist/restore, all-store finance/report views.
 2. Accountant: all-store requests and totals, catalog order visibility/items, shop assignment, payments, cash receipt from agent/delivery, staff-to-staff transfer, office deposit, audit visibility.
