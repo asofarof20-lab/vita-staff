@@ -1,0 +1,75 @@
+name: Validate VITANET web scripts
+
+on:
+  push:
+    branches:
+      - 'test/**'
+    paths:
+      - 'index.html'
+      - '.github/workflows/validate-vitanet.yml'
+  pull_request:
+    paths:
+      - 'index.html'
+      - '.github/workflows/validate-vitanet.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Extract inline JavaScript
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          class Scripts(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.inside = False
+                  self.external = False
+                  self.parts = []
+                  self.current = []
+
+              def handle_starttag(self, tag, attrs):
+                  if tag.lower() == "script":
+                      self.inside = True
+                      self.external = any(k.lower() == "src" for k, _ in attrs)
+                      self.current = []
+
+              def handle_data(self, data):
+                  if self.inside and not self.external:
+                      self.current.append(data)
+
+              def handle_endtag(self, tag):
+                  if tag.lower() == "script" and self.inside:
+                      if not self.external:
+                          self.parts.append("".join(self.current))
+                      self.inside = False
+                      self.external = False
+
+          parser = Scripts()
+          parser.feed(Path("index.html").read_text(encoding="utf-8"))
+          scripts = [s for s in parser.parts if s.strip()]
+          if not scripts:
+              raise SystemExit("No inline JavaScript blocks found")
+          out = Path("/tmp/vitanet-inline")
+          out.mkdir(exist_ok=True)
+          for i, script in enumerate(scripts, 1):
+              (out / f"script-{i}.js").write_text(script, encoding="utf-8")
+          print(f"Extracted {len(scripts)} inline JavaScript block(s)")
+          PY
+      - name: Check JavaScript syntax
+        run: |
+          set -e
+          for file in /tmp/vitanet-inline/*.js; do
+            echo "Checking $file"
+            node --check "$file"
+          done
