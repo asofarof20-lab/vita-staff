@@ -35,8 +35,9 @@ jobs:
           for (const token of hooks) if (!html.includes(token)) throw new Error('Missing required workflow hook: ' + token);
           if (html.includes('VITANET • УПРАВЛЕНИЕ КОМАНДОЙ') || html.includes('<img class="brand-logo"')) throw new Error('In-app branding header should be removed');
           if ((html.match(/let pendingCatalogOrderId=null;/g) || []).length !== 1) throw new Error('Duplicate pendingCatalogOrderId declaration');
-          const migration = fs.readFileSync('database/migrations/20261119_allow_catalog_returns_after_delivery.sql', 'utf8');\n          for (const token of [\"v_status NOT IN ('confirmed', 'delivered')\",'FOR UPDATE','vita_stock_return_receipts','vita_stock_movements','REVOKE ALL ON FUNCTION']) if (!migration.includes(token)) throw new Error('Return migration missing: ' + token);\n          console.log('VITANET static QA passed');
+          const migration = fs.readFileSync('database/migrations/20261119_allow_catalog_returns_after_delivery.sql', 'utf8');
           for (const token of ["v_status NOT IN ('confirmed', 'delivered')",'FOR UPDATE','vita_stock_return_receipts','vita_stock_movements','REVOKE ALL ON FUNCTION']) if (!migration.includes(token)) throw new Error('Return migration missing: ' + token);
+          console.log('VITANET static QA passed');
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
