@@ -1024,6 +1024,17 @@ async function loadMyPlan(){
   const pct=Number(p.target_amount)>0?Math.min(100,Math.round(actual/Number(p.target_amount)*100)):0;
   $('planProgress').style.width=pct+'%';$('planPercent').textContent='Факт: '+money(actual)+' • Ожидает доставки: '+money(expected)+' • '+pct+'%';$('planValue').textContent=money(p.target_amount);
 }
-$('logoutBtn').onclick=async()=>{await db.auth.signOut();profile=null;staff=[];shops=[];zones=[];assignments=[];routeVisits=[];cashCustodyMovements=[];shopDebtMap.clear();shopSummaryMap.clear();showLogin()};document.querySelectorAll('.nav button[data-page]').forEach(b=>b.onclick=async()=>{const page=b.dataset.page;go(page);if(page==='employees'){options('employeeZone',zones.map(z=>({value:z.id,label:'№ '+z.zone_number+' — '+z.zone_name})),'Загружаю зоны…');await loadManagement();if(!zones.length)say('employeeMsg','Активные зоны не получены. Проверьте раздел «Управление» и сообщение об ошибке.','err')}if(page==='management')await loadManagement();if(page==='salesRequests')loadSalesRequests();if(page==='catalogOrders'){await loadCatalogProducts();await loadCatalogOrders();await loadStock()}if(page==='reports')loadAccountantReports()});document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));setInterval(()=>{if(profile&&['admin','accountant'].includes(profile.role)&&$('catalogOrders')&&!$('catalogOrders').classList.contains('hidden'))loadCatalogOrders()},30000);load();
+$('logoutBtn').onclick=async()=>{await db.auth.signOut();profile=null;staff=[];shops=[];zones=[];assignments=[];routeVisits=[];cashCustodyMovements=[];shopDebtMap.clear();shopSummaryMap.clear();showLogin()};document.querySelectorAll('.nav button[data-page]').forEach(b=>b.onclick=async()=>{const page=b.dataset.page;go(page);if(page==='employees'){options('employeeZone',zones.map(z=>({value:z.id,label:'№ '+z.zone_number+' — '+z.zone_name})),'Загружаю зоны…');await loadManagement();if(!zones.length)say('employeeMsg','Активные зоны не получены. Проверьте раздел «Управление» и сообщение об ошибке.','err')}if(page==='management')await loadManagement();if(page==='salesRequests')loadSalesRequests();if(page==='catalogOrders'){await loadCatalogProducts();await loadCatalogOrders();await loadStock()}if(page==='reports')loadAccountantReports()});document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));setInterval(async()=>{
+ if(!profile)return;
+ if(['admin','accountant'].includes(profile.role)){
+  if(!$('catalogOrders').classList.contains('hidden')){await loadCatalogOrders();return}
+  const {count,error}=await db.from('vita_orders').select('id',{count:'exact',head:true}).eq('source','catalog').eq('status','new');
+  if(!error){if(count>0)showLiveOrderNotice('Новые заявки из каталога: '+count+' · открыть','catalogOrders');else hideLiveOrderNotice()}
+ }else if(profile.role==='delivery'){
+  if(!$('visits').classList.contains('hidden')){await loadMyCatalogDeliveries();return}
+  const {count,error}=await db.from('vita_orders').select('id',{count:'exact',head:true}).eq('source','catalog').eq('delivery_id',profile.user_id).in('status',['new','confirmed']);
+  if(!error){if(count>0)showLiveOrderNotice('Заявки на маршруте: '+count+' · открыть','visits');else hideLiveOrderNotice()}
+ }
+},30000);load();
 if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js');reg.update();navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!sessionStorage.getItem('vita-sw-reloaded')){sessionStorage.setItem('vita-sw-reloaded','1');location.reload();}});}catch(err){console.warn('PWA update registration failed',err);}});}
 </script></body></html>
