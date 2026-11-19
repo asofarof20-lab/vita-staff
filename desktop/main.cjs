@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, session } = require('electron');
 const { URL } = require('node:url');
 const path = require('node:path');
 const APP_URL = 'https://asofarof20-lab.github.io/vita-staff/';
@@ -7,6 +7,26 @@ function showConnectionError(win) {
   if (win.isDestroyed()) return;
   const html = '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VITANET</title><body style="margin:0;background:#f5f1e9;color:#263b31;font:16px Arial;display:grid;min-height:100vh;place-items:center"><main style="max-width:520px;padding:32px;text-align:center"><h2>Не удалось подключиться к VITANET</h2><p>Проверьте подключение к интернету и повторите попытку.</p><button onclick="location.href=\'' + APP_URL + '\'" style="padding:12px 24px;background:#24563e;color:white;border:0;border-radius:8px;font-size:16px">Повторить</button></main></body></html>';
   win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+}
+
+function configureTrustedPermissions() {
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const requestingUrl = details?.requestingUrl || webContents.getURL();
+    try {
+      const origin = new URL(requestingUrl);
+      callback(permission === 'geolocation' && origin.protocol === 'https:' && origin.hostname === 'asofarof20-lab.github.io');
+    } catch (_) {
+      callback(false);
+    }
+  });
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
+    try {
+      const origin = new URL(requestingOrigin);
+      return permission === 'geolocation' && origin.protocol === 'https:' && origin.hostname === 'asofarof20-lab.github.io';
+    } catch (_) {
+      return false;
+    }
+  });
 }
 
 function createWindow() {
@@ -44,6 +64,7 @@ function createWindow() {
   win.loadURL(APP_URL).catch(() => showConnectionError(win));
 }
 app.whenReady().then(() => {
+  configureTrustedPermissions();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
