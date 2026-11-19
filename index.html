@@ -560,8 +560,8 @@ async function loadSalesRequests(){
     const pay=x.payment_type==='cash'?'Наличные':'Долг';
     const state=x.status==='completed'?'Выполнена':x.status==='cancelled'?'Отменена':'Ожидает доставки';
     const driver=driverNames.get(x.delivery_id);
-    const result=x.delivery_result?'<div class="muted">Результат: '+esc(({paid_full:'Оплачено полностью',paid_partial:'Частичная оплата',debt:'Оставлено в долг',returned:'Возврат',no_contact:'Не удалось связаться'})[x.delivery_result]||x.delivery_result)+' · Получено: '+money(x.paid_amount)+' · Возврат: '+money(x.returned_amount)+(x.delivery_note?' · '+esc(x.delivery_note):'')+'</div>':'';
-    const action=profile.role==='delivery'&&x.status==='pending'?'<button class="smallbtn" onclick="openDeliveryForm(\''+x.id+'\','+Number(x.amount||0)+')">Отметить результат</button>':'';
+    const result=x.delivery_result?'<div class="muted">Результат: '+esc(({paid_full:'Оплачено полностью',paid_partial:'Частичная оплата',debt:'Оставлено в долг',returned:'Возврат суммы',no_contact:'Не удалось связаться'})[x.delivery_result]||x.delivery_result)+' · Получено: '+money(x.paid_amount)+' · Возврат: '+money(x.returned_amount)+(x.delivery_note?' · '+esc(x.delivery_note):'')+'</div>':'';
+    const action=profile.role==='delivery'&&x.status==='pending'?'<div class="actions"><button class="smallbtn" onclick="openDeliveryForm(\''+x.id+'\','+Number(x.amount||0)+')">Оплата / долг</button><button class="smallbtn secondary" onclick="openRequestReturnForm(\''+x.id+'\','+Number(x.amount||0)+')">↩ Возврат суммы</button></div>':''
     return '<div class="event"><div class="shopico">📦</div><div class="grow"><b>'+esc(shop?.name||'Магазин')+' · '+money(x.amount)+'</b><div class="muted">'+esc(pay)+' · Доставка: '+esc(x.delivery_date)+' · '+esc(state)+(driver?' · Доставщик: '+esc(driver):'')+'</div>'+result+action+'<div id="delivery-form-'+x.id+'" class="delivery-form hidden"></div></div></div>';
   }).join('')||'<div class="empty">Заявок пока нет</div>';
   requestTotal=count||0;
@@ -570,6 +570,26 @@ async function loadSalesRequests(){
   $('requestPrev').disabled=requestPage<=0;
   $('requestNext').disabled=(requestPage+1)*requestPageSize>=requestTotal;
 }
+window.openRequestReturnForm=(id,total)=>{
+  const host=$('delivery-form-'+id);if(!host)return;
+  host.classList.remove('hidden');
+  host.innerHTML='<div class="delivery-panel"><h3>Возврат суммы по заявке</h3><div class="muted">Укажите только сумму возврата. Товары и склад здесь не затрагиваются.</div><label>Сумма возврата (с.)</label><input id="request-return-amount-'+id+'" type="number" min="0.01" max="'+total+'" step="0.01" value="'+total+'"><label>Комментарий (необязательно)</label><input id="request-return-note-'+id+'" placeholder="Например, магазин вернул заказ"><div class="actions"><button class="smallbtn" onclick="saveRequestReturn(\''+id+'\','+total+')">Сохранить возврат</button><button class="secondary smallbtn" onclick="closeDeliveryForm(\''+id+'\')">Отмена</button></div><div id="request-return-msg-'+id+'" class="message"></div></div>';
+};
+window.saveRequestReturn=async(id,total)=>{
+  const amount=Number($('request-return-amount-'+id)?.value||0);
+  const note=$('request-return-note-'+id)?.value.trim()||null;
+  if(!Number.isFinite(amount)||amount<=0||amount>total){
+    say('request-return-msg-'+id,'Укажите сумму больше нуля и не больше суммы заявки ('+money(total)+').','err');return;
+  }
+  const host=$('delivery-form-'+id),button=host?.querySelector('button');
+  if(button)button.disabled=true;
+  const {data,error}=await db.rpc('vita_complete_delivery_request',{p_request_id:id,p_delivery_result:'returned',p_paid_amount:0,p_returned_amount:amount,p_delivery_note:note});
+  if(error){say('request-return-msg-'+id,'Не удалось сохранить возврат: '+error.message,'err');if(button)button.disabled=false;return}
+  const debt=Number(data?.remaining_debt||0);
+  alert('Возврат суммы сохранён: '+money(amount)+'.\\nОстаток долга: '+money(debt)+'.\\nЗаявка отражена в отчёте. Возврат товаров оформляется отдельно.');
+  await loadSalesRequests();await loadMyPlan();
+  if(!$('cash').classList.contains('hidden'))await loadCashManagement();
+};
 window.openDeliveryForm=(id,total)=>{
   const host=$('delivery-form-'+id);if(!host)return;
   host.classList.remove('hidden');
