@@ -1,4 +1,4 @@
-# VITANET overnight QA — 2026-11-19
+# VITANET overnight QA — 2026-11-20
 
 ## Safety boundary
 - This work is isolated to GitHub branch `test/overnight-qa-2026-11-19`.
@@ -10,7 +10,7 @@
 ## Verified environment
 - Repository: `asofarof20-lab/vita-staff`
 - Current application entry: `index.html`
-- Supabase project status: `ACTIVE_HEALTHY`
+- Supabase project status: `ACTIVE_HEALTHY`.
 - Current deployed Edge Functions observed: `vita-staff-login` (v1), `vita-catalog-orders` (v5), `create-vita-user` (v11).
 - Database migration history includes staff roles, accountant cash access, archive guards, financial audit, catalog warehouse, catalog orders, stock movements/returns, GPS/workday and stock feed migrations.
 
@@ -22,7 +22,7 @@ The live database has RLS enabled and read policies for these tables, but the `a
 - `public.vita_stock_movements`
 - `public.vita_stock_return_receipts`
 
-A row-level policy cannot grant a table privilege. The UI can therefore fail before RLS filtering is evaluated. The proposed QA-only migration `database/migrations/20261119_staff_read_grants_for_catalog_stock.sql` grants SELECT only to `authenticated`; existing RLS policies remain responsible for row access. It does not grant write access or direct anonymous access to warehouse tables.
+A row-level policy cannot grant a table privilege. The UI can therefore fail before RLS filtering is evaluated. The proposed QA-only migration grants SELECT only to `authenticated`; existing RLS policies remain responsible for row access. It does not grant write access or direct anonymous access to warehouse tables.
 
 ## Permission logic observed
 - Shop finance table: authenticated clients have SELECT/INSERT, but no direct UPDATE/DELETE; financial operations use guarded RPCs.
@@ -44,10 +44,18 @@ These are static policy/function observations, not successful end-to-end role te
 - Sales request RLS limits sales reps to their own requests and delivery workers to requests assigned to them; admin/accountant have all-request read policies. Catalog order item read policy includes accountant and the order-access helper.
 - Cash movement compatibility trigger mirrors legacy staff cash movement inserts into the newer custody ledger. This is why both ledger tables appear in the schema; do not remove either without a migration that preserves the sync behavior.
 
+## Follow-up read-only cash-flow verification — 2026-11-20
+- Re-read the live definitions of `vita_deposit_cash_to_office`, `vita_accountant_deposit_to_office`, `vita_sync_cash_custody_movement`, `vita_record_cash_handover`, `vita_accountant_receive_cash` and `vita_transfer_cash_to_staff`.
+- Confirmed `vita_deposit_cash_to_office` directly inserts one `office_receipt` row into `vita_cash_custody_movements` after checking active role, positive amount and available balance. The earlier concern that admin/delivery deposits might fail to increase the office balance is not supported by the current function definition.
+- Accountant-specific office deposit uses the legacy staff-cash movement path; the sync trigger creates the corresponding `office_receipt` row only when the active recorder is an accountant. Do not add a second direct insert to that path, because it could double-count the office deposit.
+- Staff-to-staff transfers and cash handovers are represented as custody `transfer` movements; collection records are mirrored by the sync trigger with conflict protection on `source_movement_id`.
+- This was static definition review only; no real cash movement was created and no balances were changed.
+
 ## Security and performance items requiring QA
-- Supabase security advisor reports 34 SECURITY DEFINER functions executable by authenticated users. Each must be reviewed for an internal role/ownership check; the advisor finding alone does not prove exploitability.
+- Supabase security advisor reports 34 `SECURITY DEFINER` functions executable by authenticated users. A read-only privilege scan found no `anon` EXECUTE grants among the listed public SECURITY DEFINER functions; the user-facing functions reviewed by the scan contain role/auth helper checks. The advisor finding alone does not prove exploitability. Continue manual review of each exposed function's exact authorization and object qualification before changing grants.
+- The legacy `vita_stock_seed_catalog(jsonb,numeric)` function is currently executable by authenticated users; the QA migration revokes this access to prevent creation of fictional bulk starting stock. This revoke remains unapplied to production.
 - Leaked-password protection is disabled in Auth settings.
-- Performance advisor reports multiple permissive RLS policies on several public tables and three duplicate indexes.
+- Performance advisor reports multiple permissive RLS policies on several public tables and three duplicate indexes. Do not drop indexes or consolidate policies without workload and policy-equivalence checks.
 - Additional no-primary-key / no-policy findings occur in the legacy backup schema; verify schema exposure and grants before any cleanup. No backup data was modified.
 
 ## Confirmed warehouse safety issue
@@ -68,7 +76,7 @@ The existing live UI offered a one-click initializer that added 1,000 units of e
 - Added a guarded SQL RPC definition allowing admin, delivery and accountant to adjust debt, requiring a reason and an active shop.
 - Added SELECT grants needed by the staff UI to read order items and warehouse/return tables; existing RLS policies continue to control rows.
 - Removed the UI action that created 1,000 fictional units for every catalog product and proposed revoking the legacy bulk-seed RPC.
-- Verified the changed files by fetching them back from GitHub. Branch comparison reports 5 commits ahead of `main`, 0 behind; `main`'s `index.html` SHA remains unchanged.
+- Current branch comparison reports 11 commits ahead of `main`, 0 behind; no commits were made to `main`.
 - No CI checks are configured/reported for the latest commit. The SQL migration has not been applied and no end-to-end runtime test has been run because an isolated Supabase branch is pending cost approval.
 
 ## Release gate
