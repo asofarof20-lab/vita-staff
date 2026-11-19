@@ -261,8 +261,9 @@ async function loadStockMovements(){
  }
  const labels={receipt:'Приход',sale:'Списание по заказу',return:'Возврат товара',adjustment:'Корректировка'};
  host.innerHTML=rows?.length?rows.map(x=>{
-  const qty=Number(x.quantity||0),isOut=x.movement_type==='sale'||(x.movement_type==='adjustment'&&String(x.note||'').toLowerCase().includes('списание'));
-  const amount=(isOut?'−':'+')+qty.toLocaleString('ru-RU',{maximumFractionDigits:3})+' шт.';
+  const qty=Number(x.quantity||0),noteText=String(x.note||'').toLowerCase(),isInitial=noteText.includes('начальное заполнение'),isOut=x.movement_type==='sale'||(x.movement_type==='adjustment'&&(noteText.includes('списание')||noteText.includes('уменьшение')));
+  const sign=isInitial||x.movement_type==='receipt'||x.movement_type==='return'?'+':isOut?'−':x.movement_type==='adjustment'?'±':'';
+  const amount=sign+qty.toLocaleString('ru-RU',{maximumFractionDigits:3})+' шт.';
   return '<div class="event"><div class="grow"><b>'+esc(x.product_name||x.product_code)+'</b><div class="muted">Код: '+esc(x.product_code)+' · '+esc(labels[x.movement_type]||x.movement_type)+'</div><div class="muted">'+esc(x.note||'Без примечания')+'</div><div class="muted">'+new Date(x.created_at).toLocaleString('ru-RU')+' · '+esc(actors.get(x.created_by)||'Система')+'</div></div><b>'+amount+'</b></div>';
  }).join(''):'<div class="empty">Операций пока нет</div>';
 }
