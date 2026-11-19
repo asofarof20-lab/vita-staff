@@ -162,3 +162,102 @@ GRANT EXECUTE ON FUNCTION public.vita_receive_catalog_return(uuid,text,text,nume
 
 -- Prevent accidental use of the legacy bulk initializer that creates fictional 1000-unit balances.
 REVOKE ALL ON FUNCTION public.vita_stock_seed_catalog(jsonb,numeric) FROM PUBLIC, anon, authenticated;
+
+
+-- Reject malformed catalog order lines before any warehouse deduction.
+-- product_code is nullable in the legacy table; silently skipping such a line
+-- would otherwise confirm an order without decrementing all of its products.
+CREATE OR REPLACE FUNCTION public.vita_confirm_catalog_order(p_order_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_item record;
+  v_old_status text;
+  v_shop_id uuid;
+BEGIN
+  IF NOT public.vita_is_admin() THEN
+    RAISE EXCEPTION 'Подтвердить заказ может только администратор';
+  END IF;
+
+  SELECT status, shop_id INTO v_old_status, v_shop_id
+  FROM public.vita_orders
+  WHERE id = p_order_id AND source = 'catalog'
+  FOR UPDATE;
+
+  IF NOT FOUND OR v_old_status <> 'new' THEN
+    RAISE EXCEPTION 'Заказ не найден или уже обработан';
+  END IF;
+  IF v_shop_id IS NULL OR NOT EXISTS (
+    SELECT 1 FROM public.vita_shops WHERE id = v_shop_id AND active = true
+  ) THEN
+    RAISE EXCEPTION 'Сначала прикрепите действующий магазин к заказу';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.vita_order_items WHERE order_id = p_order_id) THEN
+    RAISE EXCEPTION 'В заказе нет товаров';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM public.vita_order_items
+    WHERE order_id = p_order_id
+      AND (NULLIF(trim(product_code), '') IS NULL OR quantity IS NULL OR quantity <= 0)
+  ) THEN
+    RAISE EXCEPTION 'В заказе есть товар без кода или с некорректным количеством. Исправьте состав заказа до подтверждения';
+  END IF;
+
+  FOR v_item IN
+    SELECT product_code, max(product_name) AS product_name, sum(quantity) AS qty
+    FROM public.vita_order_items
+    WHERE order_id = p_order_id
+    GROUP BY product_code
+    ORDER BY product_code
+  LOOP
+    INSERT INTO public.vita_stock(product_code, product_name, quantity)
+    VALUES (v_item.product_code, v_item.product_name, 0)
+    ON CONFLICT (product_code) DO UPDATE
+      SET product_name = COALESCE(EXCLUDED.product_name, public.vita_stock.product_name);
+
+    PERFORM 1
+    FROM public.vita_stock
+    WHERE product_code = v_item.product_code AND quantity >= v_item.qty
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Недостаточно товара на складе: %', v_item.product_code;
+    END IF;
+  END LOOP;
+
+  FOR v_item IN
+    SELECT product_code, max(product_name) AS product_name, sum(quantity) AS qty
+    FROM public.vita_order_items
+    WHERE order_id = p_order_id
+    GROUP BY product_code
+    ORDER BY product_code
+  LOOP
+    UPDATE public.vita_stock
+    SET quantity = quantity - v_item.qty,
+        product_name = COALESCE(v_item.product_name, product_name),
+        updated_at = now(),
+        updated_by = auth.uid()
+    WHERE product_code = v_item.product_code;
+
+    INSERT INTO public.vita_stock_movements
+      (product_code, product_name, movement_type, quantity, order_id, note, created_by)
+    VALUES
+      (v_item.product_code, v_item.product_name, 'sale', v_item.qty, p_order_id,
+       'Списание по подтверждённому заказу', auth.uid());
+  END LOOP;
+
+  UPDATE public.vita_orders
+  SET status = 'confirmed', confirmed_by = auth.uid(), confirmed_at = now()
+  WHERE id = p_order_id;
+
+  INSERT INTO public.vita_order_audit(order_id, action, old_status, new_status, actor_id)
+  VALUES (p_order_id, 'confirmed', v_old_status, 'confirmed', auth.uid());
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.vita_confirm_catalog_order(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.vita_confirm_catalog_order(uuid) TO authenticated;
