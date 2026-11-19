@@ -209,9 +209,15 @@ $('returnOrder').onchange=()=>{const o=(window.vitaCatalogOrders||[]).find(x=>x.
 $('returnProduct').onchange=()=>{const o=$('returnProduct').selectedOptions[0];$('returnCode').value=o?.value||'';$('returnName').value=o?.dataset.name||''};
 async function loadStock(){
  const host=$('stockList');host.innerHTML='<div class="empty">Загружаю остатки…</div>';
- const {data,error}=await db.from('vita_stock').select('product_code,product_name,quantity,updated_at').order('product_code').limit(1000);
- if(error){host.innerHTML='<div class="message err">'+esc(error.message)+'</div>';return}
- host.innerHTML=data?.length?data.map(x=>'<div class="event"><div class="grow"><b>'+esc(x.product_name||'Товар')+'</b><div class="muted">Код: '+esc(x.product_code)+' · Обновлено: '+new Date(x.updated_at).toLocaleString('ru-RU')+'</div></div><div class="actions"><b>'+Number(x.quantity)+'</b><button type="button" class="secondary smallbtn" data-stock-edit="'+esc(x.product_code)+'" data-stock-qty="'+Number(x.quantity)+'">Изменить</button></div></div>').join(''):'<div class="empty">Остатков пока нет. Добавьте первый приход товара выше.</div>';
+ let all=[],from=0;
+ while(from<50000){
+  const {data,error}=await db.from('vita_stock').select('product_code,product_name,quantity,updated_at').order('product_code').range(from,from+999);
+  if(error){host.innerHTML='<div class="message err">'+esc(error.message)+'</div>';return}
+  const batch=data||[];all=all.concat(batch);
+  if(batch.length<1000)break;
+  from+=1000;
+ }
+ host.innerHTML=all.length?all.map(x=>'<div class="event"><div class="grow"><b>'+esc(x.product_name||'Товар')+'</b><div class="muted">Код: '+esc(x.product_code)+' · Обновлено: '+new Date(x.updated_at).toLocaleString('ru-RU')+'</div></div><div class="actions"><b>'+Number(x.quantity)+'</b><button type="button" class="secondary smallbtn" data-stock-edit="'+esc(x.product_code)+'" data-stock-qty="'+Number(x.quantity)+'">Изменить</button></div></div>').join(''):'<div class="empty">Остатков пока нет. Добавьте первый приход товара выше.</div>';
 }
 $('refreshCatalogOrders').onclick=loadCatalogOrders;
 $('stockReceive').onclick=async()=>{const code=$('stockCode').value.trim(),productName=$('stockName').value.trim(),qty=Number($('stockQty').value),note=$('stockNote').value.trim()||null;if(!code||!(qty>0)){say('stockMsg','Введите код товара и количество больше нуля','err');return}const b=$('stockReceive');b.disabled=true;const {error}=await db.rpc('vita_stock_receive',{p_product_code:code,p_product_name:productName||code,p_quantity:qty,p_note:note});b.disabled=false;if(error){say('stockMsg','Ошибка: '+error.message,'err');return}say('stockMsg','Товар принят на склад. Остаток обновлён в каталоге.','ok');$('stockQty').value='';$('stockNote').value='';await loadStock();}
