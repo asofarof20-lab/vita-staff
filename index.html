@@ -878,11 +878,15 @@ async function initStaffGps(){
 async function loadAdminGps(){
   if(profile?.role!=='admin')return;
   const host=$('adminGpsList');host.textContent='Загружаю координаты…';
-  const {data,error}=await db.from('vita_staff_location_status').select('user_id,latitude,longitude,accuracy_m,sharing_active,updated_at').order('updated_at',{ascending:false}).limit(500);
-  if(error){host.textContent='Ошибка GPS: '+error.message;return}
-  const rows=(data||[]).filter(x=>{const p=staff.find(s=>s.user_id===x.user_id);return p&&['sales','delivery'].includes(p.role)});
+  const [{data,error},{data:people,error:peopleError}]=await Promise.all([
+    db.from('vita_staff_location_status').select('user_id,latitude,longitude,accuracy_m,sharing_active,updated_at').order('updated_at',{ascending:false}).limit(500),
+    db.from('vita_staff').select('user_id,full_name,username,role,active').eq('active',true).limit(1000)
+  ]);
+  if(error||peopleError){host.textContent='Ошибка GPS: '+(error||peopleError).message;return}
+  const gpsStaff=people||staff;
+  const rows=(data||[]).filter(x=>{const p=gpsStaff.find(s=>s.user_id===x.user_id);return p&&['sales','delivery'].includes(p.role)});
   host.innerHTML=rows.map(x=>{
-    const p=staff.find(s=>s.user_id===x.user_id),coords=Number.isFinite(Number(x.latitude))&&Number.isFinite(Number(x.longitude));
+    const p=gpsStaff.find(s=>s.user_id===x.user_id),coords=Number.isFinite(Number(x.latitude))&&Number.isFinite(Number(x.longitude));
     const map=coords?'https://www.openstreetmap.org/?mlat='+encodeURIComponent(x.latitude)+'&mlon='+encodeURIComponent(x.longitude)+'#map=17/'+encodeURIComponent(x.latitude)+'/'+encodeURIComponent(x.longitude):'';
     return '<div class="event"><div class="shopico">📍</div><div class="grow"><b>'+esc(p?.full_name||p?.username||'Сотрудник')+'</b><div class="muted">'+(x.sharing_active?'GPS включён':'GPS выключен')+' · '+(x.updated_at?new Date(x.updated_at).toLocaleString('ru-RU'):'нет данных')+' · точность '+(x.accuracy_m??'—')+' м</div>'+(map?'<a href="'+map+'" target="_blank" rel="noopener">Открыть точку на карте</a>':'')+'</div><span class="pill '+(x.sharing_active?'':'orange')+'">'+(x.sharing_active?'В сети':'Остановлен')+'</span></div>';
   }).join('')||'<div class="empty">Координаты сотрудников пока не передавались.</div>';
