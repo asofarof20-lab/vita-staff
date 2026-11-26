@@ -192,7 +192,7 @@ function printCatalogInvoice(order,existingWindow=null){
 }
 async function loadCatalogOrders(){
  const host=$('catalogOrderList');host.innerHTML='<div class="empty">Загружаю заказы…</div>';
- const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,status,total,note,created_at,source,customer_shop_name,customer_phone,customer_comment,customer_location,payment_type').eq('source','catalog').order('created_at',{ascending:false}).limit(100);
+ const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,status,total,note,created_at,source,customer_shop_name,customer_phone,customer_comment,customer_location,payment_type').eq('source','catalog').order('created_at',{ascending:false}).limit(1000);
  if(error){host.innerHTML='<div class="message err">'+esc(error.message)+'</div>';return}
  const pendingCount=(orders||[]).filter(x=>x.status==='new').length;
  if(profile?.role==='accountant'){
