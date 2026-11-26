@@ -207,28 +207,30 @@ async function loadCatalogOrders(){
  const ids=(orders||[]).map(x=>x.id);
  const [ir,sr]=await Promise.all([
   ids.length?db.from('vita_order_items').select('order_id,product_code,product_name,quantity,unit_price,line_total').in('order_id',ids):Promise.resolve({data:[],error:null}),
-  db.from('vita_shops').select('id,name,contact_person,phone,address,zone_id,active').order('name').limit(2000)
+  db.from('vita_shops').select('id,name,contact_person,phone,address,zone_id,active,sales_rep_id').order('name').limit(2000)
  ]);
  if(ir.error||sr.error){host.innerHTML='<div class="message err">'+esc((ir.error||sr.error).message)+'</div>';return}
  const items=ir.data||[],allShops=sr.data||[];
  window.vitaActiveShops=allShops.filter(x=>x.active!==false);
  const shopLookup=new Map(allShops.map(x=>[x.id,x]));
- const enriched=(orders||[]).map(o=>({...o,vita_shops:shopLookup.get(o.shop_id)||{name:'Магазин не назначен'},vita_order_items:items.filter(i=>i.order_id===o.id)}));
+ const repIds=[...new Set(allShops.map(x=>x.sales_rep_id).filter(Boolean))];
+ let repLookup=new Map();
+ if(repIds.length){const {data:reps}=await db.from('vita_staff').select('user_id,full_name,username').in('user_id',repIds);repLookup=new Map((reps||[]).map(x=>[x.user_id,x.full_name||x.username||'Агент']));}
+ const enriched=(orders||[]).map(o=>({...o,vita_shops:shopLookup.get(o.shop_id)||{name:'Магазин не найден по телефону'},vita_order_items:items.filter(i=>i.order_id===o.id)}));
  window.vitaCatalogOrders=enriched;
- const shopOptions=(selected)=>'<option value="">Выберите магазин…</option>'+window.vitaActiveShops.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===selected?'selected':'')+'>'+esc(x.name)+' · '+esc(x.phone||x.address||'')+'</option>').join('');
  host.innerHTML=enriched.length?enriched.map(o=>{
-  const addShopButton='';
-  const assignShop=o.status==='new'&&!o.shop_id?'<div class="card" style="padding:12px;margin:10px 0"><b>Выбрать магазин</b><label>Поиск по названию, телефону или адресу</label><input type="search" data-shop-search="'+o.id+'" placeholder="Начните вводить название…"><label>Существующий магазин</label><select data-shop-choice="'+o.id+'">'+shopOptions(o.shop_id)+'</select><div class="actions"><button class="secondary smallbtn" data-assign-catalog="'+o.id+'">Прикрепить магазин</button>'+addShopButton+'</div></div>':'';
-  const confirm=profile.role==='accountant'&&o.status==='new'&&o.shop_id?'<button class="smallbtn" data-confirm-catalog="'+o.id+'">Подтвердить заказ</button>':'';
+  const confirm=profile.role==='accountant'&&o.status==='new'&&o.shop_id?'<button class="smallbtn" data-confirm-catalog="'+o.id+'">Да — принять заказ</button>':'';
+  const reject=profile.role==='accountant'&&o.status==='new'?'<button class="danger smallbtn" data-reject-catalog="'+o.id+'">Нет — отклонить</button>':'';
   const print=['confirmed','delivered'].includes(o.status)?'<button class="secondary smallbtn" data-print-catalog="'+o.id+'">Печать накладной</button>':'';
-  const status=o.status==='confirmed'?'<span class="pill">Подтверждён</span>':o.status==='delivered'?'<span class="pill">Выполнен</span>':o.status==='new'?(o.shop_id?'<span class="pill orange">Ожидает подтверждения</span>':'<span class="pill orange">Выберите магазин</span>'):'<span class="pill">'+esc(o.status)+'</span>';
-  const requested=o.customer_shop_name?'<div class="muted">Как указано в каталоге: '+esc(o.customer_shop_name)+' · '+esc(o.customer_phone||'Телефон не указан')+'</div>':'';
+  const status=o.status==='confirmed'?'<span class="pill">Подтверждён</span>':o.status==='delivered'?'<span class="pill">Выполнен</span>':o.status==='rejected'?'<span class="pill">Отклонён</span>':o.status==='new'?(o.shop_id?'<span class="pill orange">Ожидает решения</span>':'<span class="pill orange">Магазин не найден</span>'):'<span class="pill">'+esc(o.status)+'</span>';
+  const requested=o.customer_shop_name?'<div class="muted">Из каталога: '+esc(o.customer_shop_name)+' · '+esc(o.customer_phone||'Телефон не указан')+'</div>':'';
   const customerComment=o.customer_comment?'<div class="muted">Комментарий: '+esc(o.customer_comment)+'</div>':'';
-  const customerLocation=o.customer_location?'<div class="muted">Местоположение: '+esc(o.customer_location)+'</div>':'';
+  const customerLocation=o.customer_location?'<div class="muted">Геолокация: '+esc(o.customer_location)+'</div>':'';
   const paymentLabel=o.payment_type==='cash'?'Наличными':'В долг';
-  return '<div class="card" data-catalog-order-card="'+o.id+'" style="margin:12px 0"><div class="event" style="align-items:flex-start"><div class="grow"><b>Заказ № '+o.order_number+'</b> '+status+'<div class="muted">'+new Date(o.created_at).toLocaleString('ru-RU')+' · '+o.vita_order_items.length+' позиций · '+money(o.total)+'</div>'+requested+customerLocation+'<div class="muted">Оплата: '+paymentLabel+'</div><div style="margin:8px 0"><b>'+esc(o.vita_shops.name)+'</b>'+(o.vita_shops.phone?'<div class="muted">Телефон: '+esc(o.vita_shops.phone)+'</div>':'')+(o.vita_shops.address?'<div class="muted">Адрес: '+esc(o.vita_shops.address)+'</div>':'')+'</div><div class="muted">'+o.vita_order_items.map(i=>esc(i.product_name)+' ('+esc(i.product_code||'')+') × '+i.quantity+' · '+money(i.line_total)).join('<br>')+'</div>'+customerComment +assignShop+'<div class="actions">'+confirm+print+'</div></div></div></div>';
+  const agent=o.vita_shops.sales_rep_id?repLookup.get(o.vita_shops.sales_rep_id)||'Агент не найден':'Не определён (магазин не сопоставлен)';
+  const shopInfo=o.shop_id?'<div style="margin:8px 0"><b>'+esc(o.vita_shops.name)+'</b>'+(o.vita_shops.phone?'<div class="muted">Телефон: '+esc(o.vita_shops.phone)+'</div>':'')+(o.vita_shops.address?'<div class="muted">Адрес: '+esc(o.vita_shops.address)+'</div>':'')+'</div>':'<div class="message err">Магазин автоматически не найден по телефону. Проверьте номер в каталоге и базе магазинов.</div>';
+  return '<div class="card" data-catalog-order-card="'+o.id+'" style="margin:12px 0"><div class="event" style="align-items:flex-start"><div class="grow"><b>Заказ № '+o.order_number+'</b> '+status+'<div class="muted">'+new Date(o.created_at).toLocaleString('ru-RU')+' · '+o.vita_order_items.length+' позиций · '+money(o.total)+'</div>'+requested+'<div class="muted"><b>Заказ агента:</b> '+esc(agent)+'</div>'+customerLocation+'<div class="muted">Оплата: '+paymentLabel+'</div>'+shopInfo+'<div class="muted">'+o.vita_order_items.map(i=>esc(i.product_name)+' ('+esc(i.product_code||'')+') × '+i.quantity+' · '+money(i.line_total)).join('<br>')+'</div>'+customerComment+'<div class="actions">'+confirm+reject+print+'</div></div></div></div>';
  }).join(''):'<div class="empty">Заказов из каталога пока нет.</div>';
-}
 async function loadCatalogProducts(){
  const select=$('stockProduct');select.innerHTML='<option value="">Загружаю товары…</option>';catalogProducts=[];
  let all=[],from=0;
@@ -334,30 +336,30 @@ $('stockList').addEventListener('click',e=>{
  $('stockProduct').value=code;$('stockCode').value=code;$('stockName').value=catalogProducts.find(x=>String(x.id)===code)?.name||'';$('stockMode').value='adjust';$('stockMode').dispatchEvent(new Event('change'));$('stockQty').value=qty;$('stockNote').value='Ручная корректировка остатка';
  $('stockQty').scrollIntoView({behavior:'smooth',block:'center'});
 });
-$('catalogOrderList').addEventListener('input',e=>{
- const search=e.target.closest('[data-shop-search]');if(!search)return;
- const id=search.dataset.shopSearch,select=document.querySelector('[data-shop-choice="'+id+'"]'),q=search.value.trim().toLowerCase(),current=select.value;
- const found=(window.vitaActiveShops||[]).filter(x=>!q||[x.name,x.phone,x.address].some(v=>String(v||'').toLowerCase().includes(q)));
- select.innerHTML='<option value="">Выберите магазин…</option>'+found.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===current?'selected':'')+'>'+esc(x.name)+' · '+esc(x.phone||x.address||'')+'</option>').join('');
-});
 $('catalogOrderList').addEventListener('click',async e=>{
- const assignBtn=e.target.closest('[data-assign-catalog]'),confirmBtn=e.target.closest('[data-confirm-catalog]'),printBtn=e.target.closest('[data-print-catalog]');
- if(printBtn){const o=(window.vitaCatalogOrders||[]).find(x=>x.id===printBtn.dataset.printCatalog);if(o)printCatalogInvoice(o);return}
- if(assignBtn){const id=assignBtn.dataset.assignCatalog,select=document.querySelector('[data-shop-choice="'+id+'"]'),shopId=select?.value;if(!shopId){alert('Сначала найдите и выберите магазин.');return}assignBtn.disabled=true;const {error}=await db.rpc('vita_assign_catalog_order_shop',{p_order_id:id,p_shop_id:shopId});if(error){alert('Не удалось прикрепить магазин: '+error.message);assignBtn.disabled=false;return}await loadCatalogOrders();return}
- if(confirmBtn){
-  if(profile.role!=='accountant')return;
-  const id=confirmBtn.dataset.confirmCatalog,o=(window.vitaCatalogOrders||[]).find(x=>x.id===id);
-  if(!o||!o.shop_id){alert('Сначала прикрепите к заказу действующий магазин.');return}
-  if(!confirm('Подтвердить заказ №'+o.order_number+'? Товары будут списаны со склада, после чего откроется накладная для печати.'))return;
-  const printWindow=window.VitaNativePrint?null:window.open('','_blank');confirmBtn.disabled=true;
-  const {error}=await db.rpc('vita_confirm_catalog_order',{p_order_id:id});
-  if(error){if(printWindow)printWindow.close();alert('Не удалось подтвердить заказ: '+error.message);confirmBtn.disabled=false;return}
-  alert('Заказ подтверждён. Остатки списаны со склада. Откроется накладная для печати.');
-  printCatalogInvoice(o,printWindow);await loadCatalogOrders();
- }
-});
-
-async function refresh(){
+  const confirmBtn=e.target.closest('[data-confirm-catalog]'),rejectBtn=e.target.closest('[data-reject-catalog]'),printBtn=e.target.closest('[data-print-catalog]');
+  if(printBtn){const o=(window.vitaCatalogOrders||[]).find(x=>x.id===printBtn.dataset.printCatalog);if(o)printCatalogInvoice(o);return}
+  if(rejectBtn){
+   if(profile.role!=='accountant')return;
+   const id=rejectBtn.dataset.rejectCatalog,o=(window.vitaCatalogOrders||[]).find(x=>x.id===id);if(!o)return;
+   if(!confirm('Отклонить заказ №'+o.order_number+' от магазина «'+(o.customer_shop_name||o.vita_shops.name)+'»?'))return;
+   rejectBtn.disabled=true;const {error}=await db.rpc('vita_reject_catalog_order',{p_order_id:id,p_reason:null});
+   if(error){alert('Не удалось отклонить заказ: '+error.message);rejectBtn.disabled=false;return}
+   await loadCatalogOrders();return;
+  }
+  if(confirmBtn){
+   if(profile.role!=='accountant')return;
+   const id=confirmBtn.dataset.confirmCatalog,o=(window.vitaCatalogOrders||[]).find(x=>x.id===id);
+   if(!o||!o.shop_id){alert('Магазин не найден автоматически по телефону. Исправьте номер телефона в каталоге или базе магазинов.');return}
+   if(!confirm('Подтвердить заказ №'+o.order_number+'? Товары будут списаны со склада, после чего откроется накладная для печати.'))return;
+   const printWindow=window.VitaNativePrint?null:window.open('','_blank');confirmBtn.disabled=true;
+   const {error}=await db.rpc('vita_confirm_catalog_order',{p_order_id:id});
+   if(error){if(printWindow)printWindow.close();alert('Не удалось подтвердить заказ: '+error.message);confirmBtn.disabled=false;return}
+   alert('Заказ подтверждён. Остатки списаны со склада. Откроется накладная для печати.');
+   printCatalogInvoice(o,printWindow);await loadCatalogOrders();
+  }
+ });
+ async function refresh(){
   $('zoneList').innerHTML='<div class="empty">Загружаю зоны…</div>';
   try{
     const zoneResult=await Promise.race([
