@@ -962,4 +962,21 @@ $('logoutBtn').onclick=async()=>{await db.auth.signOut();profile=null;staff=[];s
  }
 },30000);load().catch(error=>{console.error('VITANET startup failed',error);showLogin();say('loginMsg','Ошибка запуска системы: '+(error?.message||error),'err')});
 if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js');reg.update();navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!sessionStorage.getItem('vita-sw-reloaded')){sessionStorage.setItem('vita-sw-reloaded','1');location.reload();}});}catch(err){console.warn('PWA update registration failed',err);}});}
+
+// Ensure the login callback is bound after the complete panel module has loaded.
+window.vitaCompleteLogin=async user=>{
+  try{
+    if(typeof load!=='function') throw new Error('Модуль рабочей панели ещё не запущен. Повторите вход через несколько секунд.');
+    await load(user);
+    if(!profile||profile.user_id!==user.id){
+      const message=document.getElementById('loginMsg')?.textContent?.trim();
+      throw new Error(message||'Профиль сотрудника не загрузился.');
+    }
+  }catch(error){
+    console.error('VITANET panel login failed:',error);
+    showLogin();
+    say('loginMsg','Не удалось открыть панель: '+(error?.message||'неизвестная ошибка'),'err');
+    throw error;
+  }
+};
 </script></body></html>
