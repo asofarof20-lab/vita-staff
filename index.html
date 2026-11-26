@@ -646,9 +646,10 @@ async function loadSalesRequests(){
     driverNames=new Map((allDrivers||[]).map(d=>[d.user_id,d.full_name||d.username||'Доставщик']));
   }
   if(profile.role==='sales'){
-    const {data:drivers,error:driverError}=await db.from('vita_staff').select('user_id,full_name,username').eq('role','delivery').eq('active',true).order('full_name');
+    const {data:drivers,error:driverError}=await db.from('vita_staff').select('user_id,full_name,username,active').eq('role','delivery').order('full_name');
     if(driverError){list.innerHTML='<div class="message err">Не удалось загрузить доставщиков: '+esc(driverError.message)+'</div>';return}
-    options('requestDelivery',(drivers||[]).map(d=>({value:d.user_id,label:d.full_name||d.username||'Доставщик'})),'Выберите доставщика');
+    driverNames=new Map((drivers||[]).map(d=>[d.user_id,d.full_name||d.username||'Доставщик']));
+    options('requestDelivery',(drivers||[]).filter(d=>d.active).map(d=>({value:d.user_id,label:d.full_name||d.username||'Доставщик'})),'Выберите доставщика');
   }
   let query=db.from('vita_sales_requests').select('*',{count:'exact'}).order('delivery_date',{ascending:true}).order('created_at',{ascending:false});
   if(profile.role==='sales')query=query.eq('sales_rep_id',profile.user_id);
