@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vita-staff-shell-v31';
+const CACHE_NAME = 'vita-staff-shell-v32';
 const APP_SHELL = [
   './',
   './index.html',
