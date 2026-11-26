@@ -114,6 +114,12 @@ input,select,textarea{border-color:#dce5f1;border-radius:12px;background:#fbfdff
 (function(){
   const URL='https://btxmlgdmdvmtijmgfhhg.supabase.co';
   const KEY='sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm';
+  // Initialize the shared Supabase client before the login handler can run.
+  try {
+    if(window.supabase?.createClient && !window.vitaDb){
+      window.vitaDb=window.supabase.createClient(URL,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storage:window.localStorage}});
+    }
+  } catch(initError) { console.error('VITANET early Supabase initialization failed:',initError); }
   const btn=document.getElementById('loginBtn');
   const show=(message,bad)=>{const el=document.getElementById('loginMsg');if(el){el.textContent=message;el.className='message '+(bad?'err':'');}};
   const incomingOrderId=new URLSearchParams(location.search).get('catalog_order');
