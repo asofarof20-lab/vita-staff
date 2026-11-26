@@ -395,7 +395,7 @@ async function refresh(){
   $('salesTotal').textContent=money(sales);$('paidTotal').textContent=money(paid);$('debtTotal').textContent=money(balance);$('returnTotal').textContent=money(returns);
   const metricLabels=document.querySelectorAll('#dashboard .metric small');
   
-  else if(profile.role==='admin'||profile.role==='accountant'){metricLabels[0].textContent='Общий оборот';metricLabels[1].textContent='Факт фирме';metricLabels[2].textContent='Долги';metricLabels[3].textContent='Возвраты'}
+  if(profile.role==='admin'||profile.role==='accountant'){metricLabels[0].textContent='Общий оборот';metricLabels[1].textContent='Факт фирме';metricLabels[2].textContent='Долги';metricLabels[3].textContent='Возвраты'}
   else{metricLabels[0].textContent='Продажи';metricLabels[1].textContent='Факт фирме';metricLabels[2].textContent='Долг магазинов';metricLabels[3].textContent='Возвраты'}
   $('reportShops').textContent=active.length;
   $('reportText').textContent=`Заказано: ${money(sales)} • Получено: ${money(paid)} • Возвраты: ${money(returns)} • Остаток долга: ${money(balance)}`;
