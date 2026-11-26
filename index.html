@@ -214,7 +214,7 @@ async function loadCatalogOrders(){
  const shopOptions=(selected)=>'<option value="">Выберите магазин…</option>'+window.vitaActiveShops.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===selected?'selected':'')+'>'+esc(x.name)+' · '+esc(x.phone||x.address||'')+'</option>').join('');
  host.innerHTML=enriched.length?enriched.map(o=>{
   const addShopButton=profile.role==='admin'?'<button class="smallbtn" data-new-shop-for-order="'+o.id+'">＋ Добавить магазин</button>':'';
-  const assignShop=o.status==='new'?'<div class="card" style="padding:12px;margin:10px 0"><b>Выбрать магазин</b><label>Поиск по названию, телефону или адресу</label><input type="search" data-shop-search="'+o.id+'" placeholder="Начните вводить название…"><label>Существующий магазин</label><select data-shop-choice="'+o.id+'">'+shopOptions(o.shop_id)+'</select><div class="actions"><button class="secondary smallbtn" data-assign-catalog="'+o.id+'">Прикрепить магазин</button>'+addShopButton+'</div></div>':'';
+  const assignShop=o.status==='new'&&!o.shop_id?'<div class="card" style="padding:12px;margin:10px 0"><b>Выбрать магазин</b><label>Поиск по названию, телефону или адресу</label><input type="search" data-shop-search="'+o.id+'" placeholder="Начните вводить название…"><label>Существующий магазин</label><select data-shop-choice="'+o.id+'">'+shopOptions(o.shop_id)+'</select><div class="actions"><button class="secondary smallbtn" data-assign-catalog="'+o.id+'">Прикрепить магазин</button>'+addShopButton+'</div></div>':'';
   const assignDelivery='';
   const deliveryName='';
   const confirm=profile.role==='accountant'&&o.status==='new'&&o.shop_id?'<button class="smallbtn" data-confirm-catalog="'+o.id+'">Подтвердить заказ</button>':'';
