@@ -410,6 +410,7 @@ async function refresh(){
   $('shopCount')&&($('shopCount').textContent=active.length)
 }
 function renderShops(){
+  $('shopEditor').classList.toggle('hidden',profile.role==='admin');
   const q=$('shopSearch').value.trim().toLowerCase();
   const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=profile.role!=='sales'||(!!profile.zone_id&&s.zone_id===profile.zone_id);const zn=zones.find(z=>z.id===s.zone_id)?.zone_name||'';const searchOk=!q||[s.name,s.contact_person,s.phone,s.address,s.notes,zn,String(s.zone_id||'')].some(v=>String(v||'').toLowerCase().includes(q));const zoneOk=zoneFilter==='all'||!zoneFilter?true:s.zone_id===zoneFilter;const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&zoneOk&&activityOk;});
   $('shopList').innerHTML=list.map(s=>{
@@ -429,7 +430,7 @@ function renderShops(){
       </div>
       <div class="shop-activity-tag">${shopActivityFilter==='payment'&&shopActivityMap.has(s.id)?'Оплата за период: '+money(shopActivityMap.get(s.id)):shopActivityFilter==='return'&&shopActivityMap.has(s.id)?'Возврат за период: '+money(shopActivityMap.get(s.id)):''}</div><div class="shop-card-actions">
         <button class="secondary smallbtn" onclick="toggleShopHistory('${s.id}')">История операций</button>
-        ${canEdit?`<button class="secondary smallbtn" onclick="editShop('${s.id}')">Изменить</button>`:''}${profile.role==='admin'?'<button class="secondary smallbtn" onclick="adjustShopDebt(\''+s.id+'\')">Изменить долг</button>':''}
+        ${canEdit&&profile.role!=='admin'?`<button class="secondary smallbtn" onclick="editShop('${s.id}')">Изменить</button>`:''}${profile.role==='admin'?'<button class="secondary smallbtn" onclick="adjustShopDebt(\''+s.id+'\')">Списать долг</button><button class="secondary smallbtn" onclick="refundShop(\''+s.id+'\')">Возврат денег</button>':''}
         ${profile.role==='admin'&&s.active!==false?`<button class="danger smallbtn" onclick="deactivateShop('${s.id}')">В чёрный список</button>`:profile.role==='admin'&&s.active===false?`<button class="success smallbtn" onclick="restoreShop('${s.id}')">Восстановить</button>`:''}
       </div>
       <div id="shopHistory-${s.id}" class="shop-history hidden"></div>
@@ -501,18 +502,33 @@ $('shopFilterTo').onchange=()=>{
 };
 
 window.adjustShopDebt=async id=>{
+ if(profile?.role!=='admin')return;
  const shop=shops.find(x=>x.id===id);if(!shop)return;
  const summary=shopSummaryMap.get(id)||{};
  const current=Math.max(0,Number(summary.current_debt||0));
- const raw=prompt('Текущий долг: '+money(current)+'\\nВведите сумму корректировки. Положительная сумма увеличит долг, отрицательная уменьшит его:');
+ if(current<=0){alert('У магазина нет долга для списания.');return}
+ const raw=prompt('Текущий долг: '+money(current)+'\\nСколько долга списать? Сумма не может превышать текущий долг:');
  if(raw===null)return;
  const amount=Number(String(raw).replace(',','.'));
- if(!Number.isFinite(amount)||amount===0){alert('Введите корректную ненулевую сумму.');return}
- const reason=prompt('Причина изменения долга:');
+ if(!Number.isFinite(amount)||amount<=0||amount>current){alert('Введите сумму больше нуля и не больше текущего долга.');return}
+ const reason=prompt('Причина списания долга:');
  if(!reason||!reason.trim()){alert('Укажите причину.');return}
- const direction=amount>0?'debit':'credit';
- const {error}=await db.rpc('vita_record_shop_adjustment_by_staff',{p_shop_id:id,p_amount:Math.abs(amount),p_direction:direction,p_note:reason.trim()});
- if(error){alert('Не удалось изменить долг: '+error.message);return}
+ const {error}=await db.rpc('vita_record_shop_adjustment_by_staff',{p_shop_id:id,p_amount:amount,p_direction:'credit',p_note:'Списание долга: '+reason.trim()});
+ if(error){alert('Не удалось списать долг: '+error.message);return}
+ await refresh();
+};
+window.refundShop=async id=>{
+ if(profile?.role!=='admin')return;
+ const shop=shops.find(x=>x.id===id);if(!shop)return;
+ const raw=prompt('Сумма возврата денег магазину (с.):');
+ if(raw===null)return;
+ const amount=Number(String(raw).replace(',','.'));
+ if(!Number.isFinite(amount)||amount<=0){alert('Введите сумму возврата больше нуля.');return}
+ const reason=prompt('Причина возврата денег:');
+ if(!reason||!reason.trim()){alert('Укажите причину возврата.');return}
+ if(!confirm('Оформить возврат '+money(amount)+' магазину «'+shop.name+'»?'))return;
+ const {error}=await db.rpc('vita_record_shop_return_by_staff',{p_shop_id:id,p_amount:amount,p_note:reason.trim()});
+ if(error){alert('Не удалось оформить возврат: '+error.message);return}
  await refresh();
 };
 window.editShop=id=>{const s=shops.find(x=>x.id===id);if(!s)return;$('editShopId').value=id;$('shopFormTitle').textContent='Изменить магазин';$('shopName').value=s.name||'';$('shopContact').value=s.contact_person||'';$('shopPhone').value=s.phone||'';$('shopAddress').value=s.address||'';$('shopZone').value=s.zone_id||'';$('shopSalesRep').value=s.sales_rep_id||'';$('shopNotes').value=s.notes||'';$('shopLatitude').value=s.latitude??'';$('shopLongitude').value=s.longitude??'';$('cancelShopEdit').classList.remove('hidden');$('shopEditor').scrollIntoView({behavior:'smooth'})};window.deactivateShop=async id=>{if(!confirm('Перевести магазин в чёрный список? История и финансовые записи сохранятся.'))return;const {error}=await db.from('vita_shops').update({active:false}).eq('id',id);if(error)alert('Ошибка: '+error.message);else await refresh()};window.restoreShop=async id=>{if(!confirm('Вернуть магазин из чёрного списка?'))return;const {error}=await db.from('vita_shops').update({active:true}).eq('id',id);if(error)alert('Ошибка: '+error.message);else await refresh()};
