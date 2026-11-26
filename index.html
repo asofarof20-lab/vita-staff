@@ -114,7 +114,7 @@ input,select,textarea{border-color:#dce5f1;border-radius:12px;background:#fbfdff
 (function(){
   const URL='https://btxmlgdmdvmtijmgfhhg.supabase.co';
   const KEY='sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm';
-  const btn=document.getElementById('loginBtn');if(btn)btn.disabled=true;
+  const btn=document.getElementById('loginBtn');
   const show=(message,bad)=>{const el=document.getElementById('loginMsg');if(el){el.textContent=message;el.className='message '+(bad?'err':'');}};
   const incomingOrderId=new URLSearchParams(location.search).get('catalog_order');
   if(incomingOrderId)show('Заявка из каталога сохранена. Войдите под учётной записью администратора или бухгалтера — после входа откроется эта заявка.',false);
