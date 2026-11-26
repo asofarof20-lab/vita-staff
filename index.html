@@ -192,10 +192,10 @@ function printCatalogInvoice(order,existingWindow=null){
 }
 async function loadCatalogOrders(){
  const host=$('catalogOrderList');host.innerHTML='<div class="empty">Загружаю заказы…</div>';
- const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,delivery_id,status,total,note,created_at,source,customer_shop_name,customer_phone,customer_comment,customer_location,payment_type').eq('source','catalog').order('created_at',{ascending:false}).limit(100);
+ const {data:orders,error}=await db.from('vita_orders').select('id,order_number,shop_id,status,total,note,created_at,source,customer_shop_name,customer_phone,customer_comment,customer_location,payment_type').eq('source','catalog').order('created_at',{ascending:false}).limit(100);
  if(error){host.innerHTML='<div class="message err">'+esc(error.message)+'</div>';return}
  const pendingCount=(orders||[]).filter(x=>x.status==='new').length;
- if(['admin','accountant'].includes(profile?.role)){
+ if(profile?.role==='accountant'){
   const onCatalogPage=!$('catalogOrders').classList.contains('hidden');
   if(pendingCount>0&&!onCatalogPage)showLiveOrderNotice('Новые заказы в офисе: '+pendingCount+' · открыть','catalogOrders');
   else if(pendingCount===0)hideLiveOrderNotice();
@@ -203,7 +203,7 @@ async function loadCatalogOrders(){
  const ids=(orders||[]).map(x=>x.id);
  const [ir,sr]=await Promise.all([
   ids.length?db.from('vita_order_items').select('order_id,product_code,product_name,quantity,unit_price,line_total').in('order_id',ids):Promise.resolve({data:[],error:null}),
-  db.from('vita_shops').select('id,name,contact_person,phone,address,latitude,longitude,zone_id,active').order('name').limit(2000)
+  db.from('vita_shops').select('id,name,contact_person,phone,address,zone_id,active').order('name').limit(2000)
  ]);
  if(ir.error||sr.error){host.innerHTML='<div class="message err">'+esc((ir.error||sr.error).message)+'</div>';return}
  const items=ir.data||[],allShops=sr.data||[];
@@ -224,7 +224,7 @@ async function loadCatalogOrders(){
   const customerComment=o.customer_comment?'<div class="muted">Комментарий: '+esc(o.customer_comment)+'</div>':'';
   const customerLocation=o.customer_location?'<div class="muted">Местоположение: '+esc(o.customer_location)+'</div>':'';\n  const paymentLabel=o.payment_type==='cash'?'Наличными':'В долг';
   const deliveryInfo='';
-  return '<div class="card" data-catalog-order-card="'+o.id+'" style="margin:12px 0"><div class="event" style="align-items:flex-start"><div class="grow"><b>Заказ № '+o.order_number+'</b> '+status+'<div class="muted">'+new Date(o.created_at).toLocaleString('ru-RU')+' · '+o.vita_order_items.length+' позиций · '+money(o.total)+'</div>'+requested+customerLocation+'<div class="muted">Оплата: '+paymentLabel+'</div><div style="margin:8px 0"><b>'+esc(o.vita_shops.name)+'</b>'+(o.vita_shops.phone?'<div class="muted">Телефон: '+esc(o.vita_shops.phone)+'</div>':'')+(o.vita_shops.address?'<div class="muted">Адрес: '+esc(o.vita_shops.address)+'</div>':'')+'</div>'+deliveryInfo+'<div class="muted">'+o.vita_order_items.map(i=>esc(i.product_name)+' ('+esc(i.product_code||'')+') × '+i.quantity+' · '+money(i.line_total)).join('<br>')+'</div>'+customerComment+assignShop+assignDelivery+'<div class="actions">'+confirm+print+'</div></div></div></div>';
+  return '<div class="card" data-catalog-order-card="'+o.id+'" style="margin:12px 0"><div class="event" style="align-items:flex-start"><div class="grow"><b>Заказ № '+o.order_number+'</b> '+status+'<div class="muted">'+new Date(o.created_at).toLocaleString('ru-RU')+' · '+o.vita_order_items.length+' позиций · '+money(o.total)+'</div>'+requested+customerLocation+'<div class="muted">Оплата: '+paymentLabel+'</div><div style="margin:8px 0"><b>'+esc(o.vita_shops.name)+'</b>'+(o.vita_shops.phone?'<div class="muted">Телефон: '+esc(o.vita_shops.phone)+'</div>':'')+(o.vita_shops.address?'<div class="muted">Адрес: '+esc(o.vita_shops.address)+'</div>':'')+'</div>'<div class="muted">'+o.vita_order_items.map(i=>esc(i.product_name)+' ('+esc(i.product_code||'')+') × '+i.quantity+' · '+money(i.line_total)).join('<br>')+'</div>'+customerComment+assignShop+assignDelivery+'<div class="actions">'+confirm+print+'</div></div></div></div>';
  }).join(''):'<div class="empty">Заказов из каталога пока нет.</div>';
 }
 async function loadCatalogProducts(){
