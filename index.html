@@ -165,7 +165,7 @@ function go(page){
  ['dashboard','shops','finance','cash','catalogOrders','warehouse','employees','management','reports'].forEach(p=>$(p)?.classList.toggle('hidden',p!==page));
  if(page==='shops')switchShopView();
  
- if(page==='warehouse'&&profile?.role==='admin'){loadCatalogProducts();loadStock()}
+ 
  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
  const titles={dashboard:['Главная','Краткий обзор'],shops:['Магазины','Магазины и статус долга'],finance:['Операции','Оплаты магазинов'],cash:['Касса',''],salesRequests:['Заявки',''],catalogOrders:['Заказы','Подтверждение и печать накладных'],warehouse:['Склад','Приход, остатки и возврат товара'],visits:['Маршрут',''],employees:['Сотрудники','Сотрудники, зоны и планы'],management:['Управление',''],reports:['Отчёты','']};
  $('headerTitle').textContent=titles[page][0];$('headerSubtitle').textContent=titles[page][1];
@@ -410,7 +410,7 @@ async function refresh(){
   const balance=summaries.reduce((a,x)=>a+Math.max(0,Number(x.current_debt||0)),0);
   $('salesTotal').textContent=money(sales);$('paidTotal').textContent=money(paid);$('debtTotal').textContent=money(balance);$('returnTotal').textContent=money(returns);
   const metricLabels=document.querySelectorAll('#dashboard .metric small');
-  if(profile.role==='delivery'){metricLabels[0].textContent='Наличные / оплаты';metricLabels[1].textContent='Оплачено сегодня';metricLabels[2].textContent='Остаток в долг';metricLabels[3].textContent='Возвраты';$('planCaption').textContent='План на сегодня'}
+  
   else if(profile.role==='admin'||profile.role==='accountant'){metricLabels[0].textContent='Общий оборот';metricLabels[1].textContent='Факт фирме';metricLabels[2].textContent='Долги';metricLabels[3].textContent='Возвраты'}
   else{metricLabels[0].textContent='Продажи';metricLabels[1].textContent='Факт фирме';metricLabels[2].textContent='Долг магазинов';metricLabels[3].textContent='Возвраты'}
   $('reportShops').textContent=active.length;
@@ -537,7 +537,7 @@ $('saveShop').onclick=async()=>{
  const wasForCatalogOrder=!!pendingCatalogOrderId;
  const id=$('editShopId').value;
  const row={name:$('shopName').value.trim(),contact_person:$('shopContact').value.trim()||null,phone:$('shopPhone').value.trim()||null,address:$('shopAddress').value.trim()||null,notes:$('shopNotes').value.trim()||null,latitude:$('shopLatitude').value===''?null:Number($('shopLatitude').value),longitude:$('shopLongitude').value===''?null:Number($('shopLongitude').value)};
- if(profile.role==='accountant'){row.zone_id=$('shopZone').value||null;row.sales_rep_id=$('shopSalesRep').value||null;}
+ if(profile.role==='admin'){row.zone_id=$('shopZone').value||null;row.sales_rep_id=$('shopSalesRep').value||null;}
  if(!row.name){say('shopMsg','Введите название магазина','err');return}
  if(profile.role==='sales'){if(!profile.zone_id){say('shopMsg','Администратор должен сначала назначить вам зону.','err');return}if(!id){row.sales_rep_id=profile.user_id;row.zone_id=profile.zone_id}}
  const result=id?await db.from('vita_shops').update(row).eq('id',id):await db.from('vita_shops').insert(row).select('id').single();
@@ -949,7 +949,7 @@ async function loadMyPlan(){
   const pct=Number(p.target_amount)>0?Math.min(100,Math.round(actual/Number(p.target_amount)*100)):0;
   $('planProgress').style.width=pct+'%';$('planPercent').textContent='Факт: '+money(actual)+' • Ожидает доставки: '+money(expected)+' • '+pct+'%';$('planValue').textContent=money(p.target_amount);
 }
-$('logoutBtn').onclick=async()=>{await db.auth.signOut();profile=null;staff=[];shops=[];zones=[];assignments=[];routeVisits=[];cashCustodyMovements=[];shopDebtMap.clear();shopSummaryMap.clear();showLogin()};document.querySelectorAll('.nav button[data-page]').forEach(b=>b.onclick=async()=>{const page=b.dataset.page;go(page);if(page==='employees'){options('employeeZone',zones.map(z=>({value:z.id,label:'№ '+z.zone_number+' — '+z.zone_name})),'Загружаю зоны…');await loadManagement();if(!zones.length)say('employeeMsg','Активные зоны не получены. Проверьте раздел «Сотрудники» и сообщение об ошибке.','err')}if(page==='catalogOrders'&&profile?.role==='accountant'){await loadCatalogOrders()}if(page==='warehouse'&&profile?.role==='admin'){await loadCatalogProducts();await loadStock()}if(page==='reports')loadAccountantReports()});document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));setInterval(async()=>{
+$('logoutBtn').onclick=async()=>{await db.auth.signOut();profile=null;staff=[];shops=[];zones=[];assignments=[];routeVisits=[];cashCustodyMovements=[];shopDebtMap.clear();shopSummaryMap.clear();showLogin()};document.querySelectorAll('.nav button[data-page]').forEach(b=>b.onclick=async()=>{const page=b.dataset.page;go(page);if(page==='employees'){options('employeeZone',zones.map(z=>({value:z.id,label:'№ '+z.zone_number+' — '+z.zone_name})),'Загружаю зоны…');await loadManagement();if(!zones.length)say('employeeMsg','Активные зоны не получены. Проверьте раздел «Сотрудники» и сообщение об ошибке.','err')}if(page==='catalogOrders'&&profile?.role==='accountant'){await loadCatalogOrders()}if(page==='reports')loadAccountantReports()});document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));setInterval(async()=>{
  if(!profile)return;
  if(['admin','accountant'].includes(profile.role)){
   if(!$('catalogOrders').classList.contains('hidden')){await loadCatalogOrders();return}
