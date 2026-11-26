@@ -138,7 +138,7 @@ input,select,textarea{border-color:#dce5f1;border-radius:12px;background:#fbfdff
       });
       let result={};try{result=await response.json();}catch(_){}
       if(!response.ok||!result.session)throw new Error(result.error||'Не удалось войти. Проверьте логин и пароль.');
-      const auth=window.vitaDb;if(!auth)throw new Error('Основной модуль VITANET ещё не готов. Обновите страницу и повторите вход.');
+      const auth=window.vitaDb||(window.supabase?.createClient?window.supabase.createClient(URL,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storage:window.localStorage}}):null);if(!auth)throw new Error('Не загрузилась библиотека авторизации Supabase. Проверьте интернет и откройте страницу заново.');window.vitaDb=auth;
       const {data:sessionData,error}=await auth.auth.setSession({access_token:result.session.access_token,refresh_token:result.session.refresh_token});
       if(error)throw error;
       if(!sessionData?.session)throw new Error('Сессия не сохранилась. Повторите вход.');
