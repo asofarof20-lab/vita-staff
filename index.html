@@ -155,7 +155,7 @@ input,select,textarea{border-color:#dce5f1;border-radius:12px;background:#fbfdff
 </script>
 <script>
 const SUPABASE_URL='https://btxmlgdmdvmtijmgfhhg.supabase.co';const SUPABASE_KEY='sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm';const VITA_AUTH_OPTIONS={auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storage:window.localStorage}};const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,VITA_AUTH_OPTIONS);window.vitaDb=db;const CATALOG_URL='https://yedkbzasynqitvbavwwd.supabase.co';const CATALOG_KEY='sb_publishable_lV5KW7THtDzy-SN9GTrHLg_z7AFMqUP';const catalogDb=window.supabase.createClient(CATALOG_URL,CATALOG_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});let catalogProducts=[];
-let pendingCatalogOrderId=null;let profile=null,shops=[],zones=[],finances=[],staff=[],assignments=[],routeVisits=[],cashCustodyMovements=[],requestPage=0,requestPageSize=100,requestTotal=0,shopDebtMap=new Map(),shopSummaryMap=new Map(),shopHistoryState=new Map(),shopMap=null,shopMapMarkers=[],shopView="cards";let shopFilter='active',zoneFilter='all',shopActivityFilter='all',shopActivityMap=new Map(),shopActivityLoading=false;const $=id=>document.getElementById(id);const money=n=>(Number(n||0)).toLocaleString('ru-RU',{maximumFractionDigits:2})+' с.';const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const roleName=r=>({admin:'Администратор',sales:'Торговый представитель',accountant:'Бухгалтер'})[r]||(r==='delivery'?'Роль отключена':r)||'—';
+let pendingCatalogOrderId=null;let profile=null,shops=[],zones=[],finances=[],staff=[],assignments=[],routeVisits=[],cashCustodyMovements=[],requestPage=0,requestPageSize=100,requestTotal=0,shopDebtMap=new Map(),shopSummaryMap=new Map(),shopHistoryState=new Map(),shopView="cards";let shopFilter='active',zoneFilter='all',shopActivityFilter='all',shopActivityMap=new Map(),shopActivityLoading=false;const $=id=>document.getElementById(id);const money=n=>(Number(n||0)).toLocaleString('ru-RU',{maximumFractionDigits:2})+' с.';const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const roleName=r=>({admin:'Администратор',sales:'Торговый представитель',accountant:'Бухгалтер'})[r]||(r==='delivery'?'Роль отключена':r)||'—';
 function say(id,t,type=''){const el=$(id);el.textContent=t;el.className='message '+type}function options(id,arr,placeholder){$(id).innerHTML='<option value="">'+esc(placeholder)+'</option>'+arr.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}
 function go(page){
  if(profile?.role==='accountant'&&page!=='catalogOrders')return;
@@ -400,65 +400,6 @@ async function loadMyCatalogDeliveries(){
   return '<div class="event"><div class="grow"><b>Заказ № '+o.order_number+' · '+esc(shop.name||'Магазин')+'</b> '+statusTag+'<div class="muted">'+esc(shop.phone||'')+' '+esc(shop.address||'')+' · '+money(o.total)+'</div>'+lines+'<div class="actions"><a class="secondary smallbtn" href="'+navUrl+'" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none;text-align:center">⌖ Открыть навигатор</a>'+deliveryAction+'</div></div></div>';
  }).join(''):'<div class="empty">Новых заказов из каталога пока нет.</div>';
 }
-let removedStaffGpsMap=null,removedStaffGpsMarkers=[],removedStaffGpsLines=[];
-async function {
- const host=$('removedStaffGpsList');if(!host||profile?.role!=='admin')return;
- host.textContent='Загружаю историю GPS за последние 24 часа…';
- let rows=[],from=0;
- while(from<10000){
-  const {data:batch,error}=await db.from('vita_staff_locations').select('staff_id,latitude,longitude,accuracy,recorded_at').gte('recorded_at',new Date(Date.now()-24*60*60*1000).toISOString()).order('recorded_at',{ascending:false}).range(from,from+999);
-  if(error){host.textContent='Ошибка загрузки GPS: '+error.message;return}
-  rows=rows.concat(batch||[]);
-  if(!batch||batch.length<1000)break;
-  from+=1000;
- }
- const {data:drivers,error:staffError}=await db.from('vita_staff').select('user_id,full_name,role').eq('role','sales').eq('active',true);
- if(staffError){host.textContent='Ошибка загрузки доставщиков: '+staffError.message;return}
- const latest=new Map();(rows||[]).forEach(r=>{if(!latest.has(r.staff_id))latest.set(r.staff_id,r)});
- const positions=(drivers||[]).map(d=>({...d,position:latest.get(d.user_id)})).filter(x=>x.position);
- host.innerHTML=positions.length?positions.map(x=>'<div class="event"><div class="grow"><b>'+esc(x.full_name)+'</b><div class="muted">'+new Date(x.position.recorded_at).toLocaleString('ru-RU')+' · точность ±'+Math.round(x.position.accuracy||0)+' м</div></div></div>').join(''):'Пока нет GPS-позиций. Доставщик должен начать рабочий день и разрешить геолокацию.';
- const mapEl=$('staffTrackMap');if(!mapEl||!window.L)return;
- if(!staffTrackMap){staffTrackMap=L.map(mapEl).setView([38.56,68.78],11);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(staffTrackMap)}
- staffTrackMarkers.forEach(m=>staffTrackMap.removeLayer(m));staffTrackMarkers=[];
- staffTrackLines.forEach(line=>staffTrackMap.removeLayer(line));staffTrackLines=[];
- positions.forEach(x=>{
-  const path=(rows||[]).filter(r=>r.staff_id===x.user_id).sort((a,b)=>new Date(a.recorded_at)-new Date(b.recorded_at)).map(r=>[r.latitude,r.longitude]);
-  if(path.length>1)staffTrackLines.push(L.polyline(path,{weight:4,opacity:.75}).addTo(staffTrackMap));
-  const p=x.position;staffTrackMarkers.push(L.marker([p.latitude,p.longitude]).addTo(staffTrackMap).bindPopup('<b>'+esc(x.full_name)+'</b><br>'+new Date(p.recorded_at).toLocaleString('ru-RU')));
- });
- if(positions.length){const points=positions.flatMap(x=>(rows||[]).filter(r=>r.staff_id===x.user_id).map(r=>[r.latitude,r.longitude]));const bounds=L.latLngBounds(points.length?points:positions.map(x=>[x.position.latitude,x.position.longitude]));staffTrackMap.fitBounds(bounds,{padding:[25,25],maxZoom:14})}
- setTimeout(()=>staffTrackMap.invalidateSize(),150);
-}
-let locationWatchId=null,lastLocationWrite=0;
-async function startDeliveryTracking(){
- if(profile?.role!=='sales'){say('trackingMsg','Отслеживание доступно только торговому представителю.','err');return}
- if(!navigator.geolocation){say('trackingMsg','На этом устройстве геолокация не поддерживается.','err');return}
- if(locationWatchId!==null){say('trackingMsg','Отслеживание уже включено.','ok');return}
- const {error}=await db.rpc('vita_start_workday');
- if(error){say('trackingMsg','Не удалось начать рабочий день: '+error.message,'err');return}
- say('trackingMsg','Запрашиваю разрешение на геолокацию…','');
- locationWatchId=navigator.geolocation.watchPosition(async p=>{
-  const now=Date.now();if(now-lastLocationWrite<30000)return;lastLocationWrite=now;
-  const {error:saveError}=await db.from('vita_staff_locations').insert({staff_id:profile.user_id,latitude:p.coords.latitude,longitude:p.coords.longitude,accuracy:p.coords.accuracy});
-  if(saveError)say('trackingMsg','GPS включён, но не удалось сохранить точку: '+saveError.message,'err');
-  else say('trackingMsg','Навигация и GPS включены. Последняя точка: '+new Date().toLocaleTimeString('ru-RU'),'ok');
- },e=>{locationWatchId=null;db.rpc('vita_end_workday');say('trackingMsg',e.code===1?'Разрешите доступ к геолокации в настройках браузера. Рабочий день остановлен.':'Не удалось получить GPS: '+e.message+'. Рабочий день остановлен.','err')},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
-}
-async function stopDeliveryTracking(){
- if(locationWatchId!==null){navigator.geolocation.clearWatch(locationWatchId);locationWatchId=null}
- const {error}=await db.rpc('vita_end_workday');
- say('trackingMsg',error?'Отслеживание остановлено. Рабочий день: '+error.message:'Рабочий день завершён, отслеживание выключено.',error?'err':'ok');
-}
-$('startTracking').onclick=startDeliveryTracking;
-$('stopTracking').onclick=stopDeliveryTracking;
-
-$('myCatalogDeliveries').addEventListener('click',async e=>{
- const b=e.target.closest('[data-delivered-catalog]');if(!b)return;
- if(!confirm('Отметить заказ доставленным?'))return;
- b.disabled=true;const {error}=await db.rpc('vita_mark_catalog_order_delivered',{p_order_id:b.dataset.deliveredCatalog});
- if(error){alert('Не удалось завершить доставку: '+error.message);b.disabled=false;return}
- await loadMyCatalogDeliveries();
-});
 async function refresh(){
   $('zoneList').innerHTML='<div class="empty">Загружаю зоны…</div>';
   try{
@@ -603,7 +544,7 @@ $('shopFilterTo').onchange=()=>{
   if(shopActivityFilter==='payment'||shopActivityFilter==='return')applyShopActivityFilter(shopActivityFilter);
 };
 
-window.editShop=id=>{const s=shops.find(x=>x.id===id);if(!s)return;$('editShopId').value=id;$('shopFormTitle').textContent='Изменить магазин';$('shopName').value=s.name||'';$('shopContact').value=s.contact_person||'';$('shopPhone').value=s.phone||'';$('shopAddress').value=s.address||'';$('shopZone').value=s.zone_id||'';$('shopSalesRep').value=s.sales_rep_id||'';$('shopNotes').value=s.notes||'';$('shopLatitude').value=s.latitude??'';$('shopLongitude').value=s.longitude??'';$('shopGpsCoords').textContent=s.latitude!=null&&s.longitude!=null?'GPS: '+Number(s.latitude).toFixed(6)+', '+Number(s.longitude).toFixed(6):'GPS-координаты не указаны';$('cancelShopEdit').classList.remove('hidden');$('shopEditor').scrollIntoView({behavior:'smooth'})};window.deactivateShop=async id=>{if(!confirm('Перевести магазин в чёрный список? История и финансовые записи сохранятся.'))return;const {error}=await db.from('vita_shops').update({active:false}).eq('id',id);if(error)alert('Ошибка: '+error.message);else await refresh()};window.restoreShop=async id=>{if(!confirm('Вернуть магазин из чёрного списка?'))return;const {error}=await db.from('vita_shops').update({active:true}).eq('id',id);if(error)alert('Ошибка: '+error.message);else await refresh()};
+window.editShop=id=>{const s=shops.find(x=>x.id===id);if(!s)return;$('editShopId').value=id;$('shopFormTitle').textContent='Изменить магазин';$('shopName').value=s.name||'';$('shopContact').value=s.contact_person||'';$('shopPhone').value=s.phone||'';$('shopAddress').value=s.address||'';$('shopZone').value=s.zone_id||'';$('shopSalesRep').value=s.sales_rep_id||'';$('shopNotes').value=s.notes||'';$('shopLatitude').value=s.latitude??'';$('shopLongitude').value=s.longitude??'';$('cancelShopEdit').classList.remove('hidden');$('shopEditor').scrollIntoView({behavior:'smooth'})};window.deactivateShop=async id=>{if(!confirm('Перевести магазин в чёрный список? История и финансовые записи сохранятся.'))return;const {error}=await db.from('vita_shops').update({active:false}).eq('id',id);if(error)alert('Ошибка: '+error.message);else await refresh()};window.restoreShop=async id=>{if(!confirm('Вернуть магазин из чёрного списка?'))return;const {error}=await db.from('vita_shops').update({active:true}).eq('id',id);if(error)alert('Ошибка: '+error.message);else await refresh()};
 $('shopSearch').oninput=()=>{renderShops();};$('shopZoneFilter').onchange=()=>{zoneFilter=$('shopZoneFilter').value||'all';renderShops()};const now=new Date(),firstOfMonth=new Date(now.getFullYear(),now.getMonth(),1),localDateValue=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');$('shopFilterFrom').value=localDateValue(firstOfMonth);$('shopFilterTo').value=localDateValue(now);document.querySelectorAll('[data-shopfilter]').forEach(b=>b.onclick=()=>{shopFilter=b.dataset.shopfilter;document.querySelectorAll('[data-shopfilter]').forEach(x=>x.classList.toggle('active',x===b));renderShops()});
 $('saveShop').onclick=async()=>{
  const wasForCatalogOrder=!!pendingCatalogOrderId;
@@ -623,7 +564,7 @@ $('saveShop').onclick=async()=>{
  resetShopForm();await refresh();
  if(wasForCatalogOrder&&!pendingCatalogOrderId){go('catalogOrders');await loadCatalogOrders()}
 };
-function resetShopForm(){$('editShopId').value='';$('shopZone').value='';$('shopSalesRep').value='';$('shopLatitude').value='';$('shopLongitude').value='';$('shopGpsCoords').textContent='GPS-координаты не указаны';['shopName','shopContact','shopPhone','shopAddress','shopNotes'].forEach(i=>$(i).value='');$('shopFormTitle').textContent='Добавить магазин';$('cancelShopEdit').classList.add('hidden')}$('cancelShopEdit').onclick=resetShopForm;
+function resetShopForm(){$('editShopId').value='';$('shopZone').value='';$('shopSalesRep').value='';$('shopLatitude').value='';$('shopLongitude').value='';['shopName','shopContact','shopPhone','shopAddress','shopNotes'].forEach(i=>$(i).value='');$('shopFormTitle').textContent='Добавить магазин';$('cancelShopEdit').classList.add('hidden')}$('cancelShopEdit').onclick=resetShopForm;
 $('operation').onchange=()=> $('adjustmentDirectionWrap').classList.toggle('hidden',$('operation').value!=='adjustment');
 $('saveFinance').onclick=async()=>{
   const type=$('operation').value,amount=Number($('amount').value),shop_id=$('financeShop').value;
