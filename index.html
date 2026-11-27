@@ -447,7 +447,7 @@ $('catalogOrderList').addEventListener('click',async e=>{
   renderShops();
   
   options('financeShop',active.map(x=>({value:x.id,label:x.name})),'Выберите магазин');
-  if(profile.role==='sales')options('requestShop',active.filter(x=>x.zone_id===profile.zone_id&&x.agent_visible!==false).map(x=>({value:x.id,label:x.name})),'Выберите магазин');
+  if(profile.role==='sales')options('requestShop',active.filter(x=>x.sales_rep_id===profile.user_id&&x.zone_id===profile.zone_id).map(x=>({value:x.id,label:x.name})),'Выберите магазин');
   if(profile.role==='admin'){await loadManagement()}
   
   
@@ -457,7 +457,7 @@ $('catalogOrderList').addEventListener('click',async e=>{
 function renderShops(){
   $('shopEditor').classList.toggle('hidden',profile.role==='admin');
   const q=$('shopSearch').value.trim().toLowerCase();
-  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=profile.role!=='sales'||((s.sales_rep_id===profile.user_id&&!!profile.zone_id&&s.zone_id===profile.zone_id&&s.agent_visible!==false)||sharedShopIds.has(s.id));const zn=zones.find(z=>z.id===s.zone_id)?.zone_name||'';const searchOk=!q||[s.name,s.contact_person,s.phone,s.address,s.notes,zn,String(s.zone_id||'')].some(v=>String(v||'').toLowerCase().includes(q));const zoneOk=zoneFilter==='all'||!zoneFilter?true:s.zone_id===zoneFilter;const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&zoneOk&&activityOk;});
+  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=profile.role!=='sales'||((s.sales_rep_id===profile.user_id&&!!profile.zone_id&&s.zone_id===profile.zone_id)||sharedShopIds.has(s.id));const zn=zones.find(z=>z.id===s.zone_id)?.zone_name||'';const searchOk=!q||[s.name,s.contact_person,s.phone,s.address,s.notes,zn,String(s.zone_id||'')].some(v=>String(v||'').toLowerCase().includes(q));const zoneOk=zoneFilter==='all'||!zoneFilter?true:s.zone_id===zoneFilter;const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&zoneOk&&activityOk;});
   $('shopList').innerHTML=list.map(s=>{
     const canEdit=profile.role==='admin'||(profile.role==='sales'&&s.sales_rep_id===profile.user_id);
     const summary=shopSummaryMap.get(s.id)||{};
