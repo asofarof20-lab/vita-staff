@@ -163,7 +163,7 @@ input,select,textarea{border-color:#dce5f1;border-radius:12px;background:#fbfdff
 <script>
 const loginButton=document.getElementById('loginBtn');if(loginButton)loginButton.disabled=false;const loginMessage=document.getElementById('loginMsg');if(loginMessage&&!loginMessage.textContent.trim())loginMessage.textContent='Введите логин и пароль.';
 const SUPABASE_URL='https://btxmlgdmdvmtijmgfhhg.supabase.co';const SUPABASE_KEY='sb_publishable_Bn5HFGp4ESlKqT_mfZ7ttA_cpaIPAUm';const VITA_AUTH_OPTIONS={auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storage:window.localStorage}};const db=window.vitaDb||window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,VITA_AUTH_OPTIONS);window.vitaDb=db;const CATALOG_URL='https://yedkbzasynqitvbavwwd.supabase.co';const CATALOG_KEY='sb_publishable_lV5KW7THtDzy-SN9GTrHLg_z7AFMqUP';const catalogDb=window.supabase.createClient(CATALOG_URL,CATALOG_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});let catalogProducts=[];
-let pendingCatalogOrderId=null;let profile=null,shops=[],zones=[],finances=[],staff=[],assignments=[],routeVisits=[],cashCustodyMovements=[],requestPage=0,requestPageSize=100,requestTotal=0,shopDebtMap=new Map(),shopSummaryMap=new Map(),shopHistoryState=new Map(),shopView="cards";let shopFilter='active',zoneFilter='all',shopActivityFilter='all',shopActivityMap=new Map(),shopActivityLoading=false;const $=id=>document.getElementById(id);const money=n=>(Number(n||0)).toLocaleString('ru-RU',{maximumFractionDigits:2})+' с.';const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const roleName=r=>({admin:'Администратор',sales:'Торговый представитель',accountant:'Бухгалтер'})[r]||(r==='delivery'?'Роль отключена':r)||'—';
+let pendingCatalogOrderId=null;let profile=null,shops=[],zones=[],finances=[],staff=[],assignments=[],routeVisits=[],cashCustodyMovements=[],requestPage=0,requestPageSize=100,requestTotal=0,shopDebtMap=new Map(),shopSummaryMap=new Map(),shopHistoryState=new Map(),shopView="cards",sharedShopIds=new Set();let shopFilter='active',zoneFilter='all',shopActivityFilter='all',shopActivityMap=new Map(),shopActivityLoading=false;const $=id=>document.getElementById(id);const money=n=>(Number(n||0)).toLocaleString('ru-RU',{maximumFractionDigits:2})+' с.';const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const roleName=r=>({admin:'Администратор',sales:'Торговый представитель',accountant:'Бухгалтер'})[r]||(r==='delivery'?'Роль отключена':r)||'—';
 function say(id,t,type=''){const el=$(id);el.textContent=t;el.className='message '+type}function options(id,arr,placeholder){$(id).innerHTML='<option value="">'+esc(placeholder)+'</option>'+arr.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}
 function go(page){
  if(profile?.role==='accountant'&&page!=='catalogOrders')return;
@@ -402,19 +402,22 @@ $('catalogOrderList').addEventListener('click',async e=>{
     console.error('Ошибка загрузки зон:',zoneError);
     $('zoneList').innerHTML='<div class="message err">Не удалось загрузить зоны: '+esc(zoneError.message||zoneError)+'</div>';
   }
-  const [shopResult,summaryResult]=await Promise.all([
+  const [shopResult,summaryResult,sharedResult]=await Promise.all([
     db.from('vita_shops').select('*').order('created_at',{ascending:false}),
-    db.from('vita_shop_finance_summary').select('shop_id,total_ordered,total_paid,total_returns,current_debt')
+    db.from('vita_shop_finance_summary').select('shop_id,total_ordered,total_paid,total_returns,current_debt'),
+    profile.role==='sales'?db.from('vita_shop_shared_agents').select('shop_id').eq('sales_rep_id',profile.user_id):Promise.resolve({data:[],error:null})
   ]);
   if(shopResult.error){console.error(shopResult.error);say('shopMsg','Не удалось загрузить магазины: '+shopResult.error.message,'err');return}
   shops=shopResult.data||[];
+  if(sharedResult.error){console.error('Не удалось загрузить общие магазины агента:',sharedResult.error);sharedShopIds=new Set()}else{sharedShopIds=new Set((sharedResult.data||[]).map(x=>x.shop_id))}
   if(summaryResult.error){console.error(summaryResult.error);say('shopMsg','Финансовая сводка временно недоступна: '+summaryResult.error.message,'err')}
   const zoneOptions=zones.map(z=>({value:z.id,label:z.zone_number+' — '+z.zone_name}));
   const zoneFilterValue=$('shopZoneFilter').value||zoneFilter;
   options('shopZoneFilter',zoneOptions,'Все зоны');$('shopZoneFilter').value=zoneFilterValue==='all'?'':zoneFilterValue;
   options('shopZone',zoneOptions,'Без зоны');
   finances=[];
-  const summaries=summaryResult.error?[]:(summaryResult.data||[]);
+  const visibleShopIds=new Set(shops.map(x=>x.id));
+  const summaries=summaryResult.error?[]:(summaryResult.data||[]).filter(x=>profile.role!=='sales'||visibleShopIds.has(x.shop_id));
   shopSummaryMap=new Map(summaries.map(x=>[x.shop_id,x]));
   shopDebtMap=new Map(summaries.map(x=>[x.shop_id,Number(x.current_debt||0)]));
   shopHistoryState.clear();
@@ -443,7 +446,7 @@ $('catalogOrderList').addEventListener('click',async e=>{
 function renderShops(){
   $('shopEditor').classList.toggle('hidden',profile.role==='admin');
   const q=$('shopSearch').value.trim().toLowerCase();
-  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=profile.role!=='sales'||(!!profile.zone_id&&s.zone_id===profile.zone_id&&s.agent_visible!==false);const zn=zones.find(z=>z.id===s.zone_id)?.zone_name||'';const searchOk=!q||[s.name,s.contact_person,s.phone,s.address,s.notes,zn,String(s.zone_id||'')].some(v=>String(v||'').toLowerCase().includes(q));const zoneOk=zoneFilter==='all'||!zoneFilter?true:s.zone_id===zoneFilter;const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&zoneOk&&activityOk;});
+  const list=shops.filter(s=>{const statusOk=shopFilter==='all'||s.active!==false;const assignedOk=profile.role!=='sales'||((s.sales_rep_id===profile.user_id&&!!profile.zone_id&&s.zone_id===profile.zone_id&&s.agent_visible!==false)||sharedShopIds.has(s.id));const zn=zones.find(z=>z.id===s.zone_id)?.zone_name||'';const searchOk=!q||[s.name,s.contact_person,s.phone,s.address,s.notes,zn,String(s.zone_id||'')].some(v=>String(v||'').toLowerCase().includes(q));const zoneOk=zoneFilter==='all'||!zoneFilter?true:s.zone_id===zoneFilter;const summary=shopSummaryMap.get(s.id)||{};const activity=shopActivityMap.get(s.id);const activityOk=shopActivityFilter==='all'||(shopActivityFilter==='debt'&&Number(summary.current_debt||0)>0)||((shopActivityFilter==='payment'||shopActivityFilter==='return')&&!!activity);return statusOk&&assignedOk&&searchOk&&zoneOk&&activityOk;});
   $('shopList').innerHTML=list.map(s=>{
     const canEdit=profile.role==='admin'||(profile.role==='sales'&&s.sales_rep_id===profile.user_id);
     const summary=shopSummaryMap.get(s.id)||{};
