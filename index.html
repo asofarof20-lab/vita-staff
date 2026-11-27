@@ -234,7 +234,7 @@ async function loadCatalogOrders(){
  });
  window.vitaCatalogOrders=enriched;
  host.innerHTML=enriched.length?enriched.map(o=>{
-  const confirm=profile.role==='accountant'&&o.status==='new'&&o.shop_id?'<button class="smallbtn" data-confirm-catalog="'+o.id+'">Да — принять заказ</button>':'';
+  const confirm=profile.role==='accountant'&&o.status==='new'?'<button class="smallbtn" data-confirm-catalog="'+o.id+'">Да — принять заказ</button>':'';
   const reject=profile.role==='accountant'&&o.status==='new'?'<button class="danger smallbtn" data-reject-catalog="'+o.id+'">Нет — отклонить</button>':'';
   const print=['confirmed','delivered'].includes(o.status)?'<button class="secondary smallbtn" data-print-catalog="'+o.id+'">Печать накладной</button>':'';
   const status=o.status==='confirmed'?'<span class="pill">Подтверждён</span>':o.status==='delivered'?'<span class="pill">Выполнен</span>':o.status==='rejected'?'<span class="pill">Отклонён</span>':o.status==='new'?'<span class="pill orange">Новый заказ</span>':'<span class="pill">'+esc(o.status)+'</span>';
@@ -367,7 +367,7 @@ $('catalogOrderList').addEventListener('click',async e=>{
   if(confirmBtn){
    if(profile.role!=='accountant')return;
    const id=confirmBtn.dataset.confirmCatalog,o=(window.vitaCatalogOrders||[]).find(x=>x.id===id);
-   if(!o||!o.shop_id){alert('Магазин не найден автоматически по телефону. Исправьте номер телефона в каталоге или базе магазинов.');return}
+   if(!o){alert('Заказ не найден в списке. Обновите страницу.');return}
    if(!confirm('Подтвердить заказ №'+o.order_number+'? Товары будут списаны со склада, после чего откроется накладная для печати.'))return;
    const printWindow=window.VitaNativePrint?null:window.open('','_blank');confirmBtn.disabled=true;
    const {error}=await db.rpc('vita_confirm_catalog_order',{p_order_id:id});
