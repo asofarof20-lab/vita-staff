@@ -230,7 +230,7 @@ async function loadCatalogOrders(){
   const exactShop=shopLookup.get(o.shop_id);
   const phoneMatches=shopsByPhone.get(phoneKey(o.customer_phone))||[];
   const matchedShop=exactShop||(phoneMatches.length===1?phoneMatches[0]:null);
-  return {...o,vita_shops:matchedShop||{name:o.customer_shop_name||'Магазин из каталога',phone:o.customer_phone||'',address:o.customer_location||''},vita_shop_match:!!matchedShop,vita_order_items:items.filter(i=>i.order_id===o.id)};
+  return {...o,shop_id:matchedShop?.id||o.shop_id,vita_shops:matchedShop||{name:o.customer_shop_name||'Магазин из каталога',phone:o.customer_phone||'',address:o.customer_location||''},vita_shop_match:!!matchedShop,vita_order_items:items.filter(i=>i.order_id===o.id)};
  });
  window.vitaCatalogOrders=enriched;
  host.innerHTML=enriched.length?enriched.map(o=>{
