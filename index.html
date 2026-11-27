@@ -422,10 +422,21 @@ $('catalogOrderList').addEventListener('click',async e=>{
   shopDebtMap=new Map(summaries.map(x=>[x.shop_id,Number(x.current_debt||0)]));
   shopHistoryState.clear();
   const active=shops.filter(x=>x.active!==false);
-  const sales=summaries.reduce((a,x)=>a+Number(x.total_ordered||0),0);
-  const paid=summaries.reduce((a,x)=>a+Number(x.total_paid||0),0);
-  const returns=summaries.reduce((a,x)=>a+Number(x.total_returns||0),0);
-  const balance=summaries.reduce((a,x)=>a+Math.max(0,Number(x.current_debt||0)),0);
+  let sales=summaries.reduce((a,x)=>a+Number(x.total_ordered||0),0);
+  let paid=summaries.reduce((a,x)=>a+Number(x.total_paid||0),0);
+  let returns=summaries.reduce((a,x)=>a+Number(x.total_returns||0),0);
+  let balance=summaries.reduce((a,x)=>a+Math.max(0,Number(x.current_debt||0)),0);
+  if(profile.role==='sales'){
+    const {data:agentRows,error:agentRowsError}=await db.from('vita_sales_requests').select('amount,paid_amount,returned_amount,delivery_result').eq('sales_rep_id',profile.user_id).eq('status','completed');
+    if(agentRowsError){say('shopMsg','Не удалось обновить личные показатели агента: '+agentRowsError.message,'err')}
+    else{
+      const completed=(agentRows||[]).filter(x=>x.delivery_result!=='no_contact');
+      sales=completed.reduce((sum,x)=>sum+Math.max(0,Number(x.amount||0)-Number(x.returned_amount||0)),0);
+      paid=completed.reduce((sum,x)=>sum+Number(x.paid_amount||0),0);
+      returns=completed.reduce((sum,x)=>sum+Number(x.returned_amount||0),0);
+      balance=completed.reduce((sum,x)=>sum+Math.max(0,Number(x.amount||0)-Number(x.paid_amount||0)-Number(x.returned_amount||0)),0);
+    }
+  }
   $('salesTotal').textContent=money(sales);$('paidTotal').textContent=money(paid);$('debtTotal').textContent=money(balance);$('returnTotal').textContent=money(returns);
   const metricLabels=document.querySelectorAll('#dashboard .metric small');
   
