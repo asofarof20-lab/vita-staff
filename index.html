@@ -219,23 +219,32 @@ async function loadCatalogOrders(){
  const items=ir.data||[],allShops=sr.data||[];
  window.vitaActiveShops=allShops.filter(x=>x.active!==false);
  const shopLookup=new Map(allShops.map(x=>[x.id,x]));
+ // Match phone numbers on the VITANET side only. Do not modify the VITA Catalog.
+ const phoneKey=value=>{let d=String(value||'').replace(/\\D/g,'');if(d.startsWith('992')&&d.length===12)d=d.slice(3);if(d.startsWith('0')&&d.length===10)d=d.slice(1);return d.length>=9?d.slice(-9):d;};
+ const shopsByPhone=new Map();
+ allShops.forEach(shop=>{const key=phoneKey(shop.phone);if(!key)return;const list=shopsByPhone.get(key)||[];list.push(shop);shopsByPhone.set(key,list);});
  const repIds=[...new Set(allShops.map(x=>x.sales_rep_id).filter(Boolean))];
  let repLookup=new Map();
  if(repIds.length){const {data:reps}=await db.from('vita_staff').select('user_id,full_name,username').in('user_id',repIds);repLookup=new Map((reps||[]).map(x=>[x.user_id,x.full_name||x.username||'Агент']));}
- const enriched=(orders||[]).map(o=>({...o,vita_shops:shopLookup.get(o.shop_id)||{name:'Магазин не найден по телефону'},vita_order_items:items.filter(i=>i.order_id===o.id)}));
+ const enriched=(orders||[]).map(o=>{
+  const exactShop=shopLookup.get(o.shop_id);
+  const phoneMatches=shopsByPhone.get(phoneKey(o.customer_phone))||[];
+  const matchedShop=exactShop||(phoneMatches.length===1?phoneMatches[0]:null);
+  return {...o,vita_shops:matchedShop||{name:o.customer_shop_name||'Магазин из каталога',phone:o.customer_phone||'',address:o.customer_location||''},vita_shop_match:!!matchedShop,vita_order_items:items.filter(i=>i.order_id===o.id)};
+ });
  window.vitaCatalogOrders=enriched;
  host.innerHTML=enriched.length?enriched.map(o=>{
   const confirm=profile.role==='accountant'&&o.status==='new'&&o.shop_id?'<button class="smallbtn" data-confirm-catalog="'+o.id+'">Да — принять заказ</button>':'';
   const reject=profile.role==='accountant'&&o.status==='new'?'<button class="danger smallbtn" data-reject-catalog="'+o.id+'">Нет — отклонить</button>':'';
   const print=['confirmed','delivered'].includes(o.status)?'<button class="secondary smallbtn" data-print-catalog="'+o.id+'">Печать накладной</button>':'';
-  const status=o.status==='confirmed'?'<span class="pill">Подтверждён</span>':o.status==='delivered'?'<span class="pill">Выполнен</span>':o.status==='rejected'?'<span class="pill">Отклонён</span>':o.status==='new'?(o.shop_id?'<span class="pill orange">Ожидает решения</span>':'<span class="pill orange">Магазин не найден</span>'):'<span class="pill">'+esc(o.status)+'</span>';
-  const requested=o.customer_shop_name?'<div class="muted">Из каталога: '+esc(o.customer_shop_name)+' · '+esc(o.customer_phone||'Телефон не указан')+'</div>':'';
+  const status=o.status==='confirmed'?'<span class="pill">Подтверждён</span>':o.status==='delivered'?'<span class="pill">Выполнен</span>':o.status==='rejected'?'<span class="pill">Отклонён</span>':o.status==='new'?'<span class="pill orange">Новый заказ</span>':'<span class="pill">'+esc(o.status)+'</span>';
+  const requested=o.customer_shop_name?'<div class="muted"><b>Магазин из каталога:</b> '+esc(o.customer_shop_name)+' · '+esc(o.customer_phone||'Телефон не указан')+'</div>':'';
   const customerComment=o.customer_comment?'<div class="muted">Комментарий: '+esc(o.customer_comment)+'</div>':'';
   const customerLocation=o.customer_location?'<div class="muted">Геолокация: '+esc(o.customer_location)+'</div>':'';
   const paymentLabel=o.payment_type==='cash'?'Наличными':'В долг';
    const debtDueLabel=o.payment_type==='debt'&&o.debt_due_date?'<div class="muted"><b>Дата выплаты долга:</b> '+new Date(o.debt_due_date+'T00:00:00').toLocaleDateString('ru-RU')+'</div>':'';
-  const agent=o.vita_shops.sales_rep_id?repLookup.get(o.vita_shops.sales_rep_id)||'Агент не найден':'Не определён (магазин не сопоставлен)';
-  const shopInfo=o.shop_id?'<div style="margin:8px 0"><b>'+esc(o.vita_shops.name)+'</b>'+(o.vita_shops.phone?'<div class="muted">Телефон: '+esc(o.vita_shops.phone)+'</div>':'')+(o.vita_shops.address?'<div class="muted">Адрес: '+esc(o.vita_shops.address)+'</div>':'')+'</div>':'<div class="message err">Магазин автоматически не найден по телефону. Проверьте номер в каталоге и базе магазинов.</div>';
+  const agent=o.vita_shops.sales_rep_id?repLookup.get(o.vita_shops.sales_rep_id)||'Агент не найден':'Не указан';
+  const shopInfo='<div style="margin:8px 0"><b>'+esc(o.vita_shops.name||o.customer_shop_name||'Магазин')+'</b>'+(o.vita_shops.contact_person?'<div class="muted">Контактное лицо магазина: '+esc(o.vita_shops.contact_person)+'</div>':'')+(o.vita_shops.phone?'<div class="muted">Телефон: '+esc(o.vita_shops.phone)+'</div>':'')+(o.vita_shops.address?'<div class="muted">Адрес: '+esc(o.vita_shops.address)+'</div>':'')+'</div>';
   return '<div class="card" data-catalog-order-card="'+o.id+'" style="margin:12px 0"><div class="event" style="align-items:flex-start"><div class="grow"><b>Заказ № '+o.order_number+'</b> '+status+'<div class="muted">'+new Date(o.created_at).toLocaleString('ru-RU')+' · '+o.vita_order_items.length+' позиций · '+money(o.total)+'</div>'+requested+'<div class="muted"><b>Заказ агента:</b> '+esc(agent)+'</div>'+customerLocation+'<div class="muted">Оплата: '+paymentLabel+'</div>'+debtDueLabel+shopInfo+'<div class="muted">'+o.vita_order_items.map(i=>esc(i.product_name)+' ('+esc(i.product_code||'')+') × '+i.quantity+' · '+money(i.line_total)).join('<br>')+'</div>'+customerComment+'<div class="actions">'+confirm+reject+print+'</div></div></div></div>';
  }).join(''):'<div class="empty">Заказов из каталога пока нет.</div>';
 }
